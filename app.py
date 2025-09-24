@@ -1,6 +1,7 @@
 """Streamlit 기반 포트폴리오 애플리케이션."""
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dotenv import load_dotenv
 
 from portfolio_chatbot import (
     build_langchain_history,
@@ -18,6 +20,9 @@ from portfolio_chatbot import (
 )
 
 PDF_PATH = Path("assets/portfolio.pdf")
+PORTFOLIO_DATA_PATH = Path("portfolio_data.json")
+
+load_dotenv()
 
 
 def configure_page() -> None:
@@ -40,6 +45,34 @@ def initialize_session_state() -> None:
         st.session_state["openai_api_key_input"] = st.session_state["openai_api_key"]
 
 
+@st.cache_data(show_spinner=False)
+def load_portfolio_data_cached(json_path_str: str) -> Dict[str, Any]:
+    """포트폴리오 JSON 데이터를 로드하여 캐시에 보관한다.
+
+    Args:
+        json_path_str (str): 포트폴리오 데이터 JSON 파일 경로 문자열.
+
+    Returns:
+        Dict[str, Any]: JSON 파일에서 파싱한 포트폴리오 데이터 사전.
+
+    Raises:
+        FileNotFoundError: 지정한 JSON 파일이 존재하지 않을 때 발생한다.
+        ValueError: JSON 구문 오류 등으로 데이터를 파싱할 수 없을 때 발생한다.
+    """
+
+    json_path = Path(json_path_str)
+    if not json_path.exists():
+        raise FileNotFoundError(f"포트폴리오 데이터 파일을 찾을 수 없습니다: {json_path}")
+
+    try:
+        with json_path.open("r", encoding="utf-8") as file:
+            return json.load(file)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            f"포트폴리오 데이터 파일을 파싱하는 중 오류가 발생했습니다: {error}"
+        ) from error
+
+
 @st.cache_resource(show_spinner=False)
 def initialize_chat_chain_cached(pdf_path_str: str):
     """포트폴리오 챗봇 체인을 초기화하고 캐시한다.
@@ -57,6 +90,24 @@ def initialize_chat_chain_cached(pdf_path_str: str):
     documents = load_portfolio_documents(pdf_path)
     vector_store = build_vector_store(documents)
     return create_portfolio_chain(vector_store)
+
+
+def prepare_portfolio_data(json_path: Path) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """포트폴리오 데이터 로드를 수행하고 오류 메시지를 반환한다.
+
+    Args:
+        json_path (Path): 포트폴리오 JSON 데이터 파일 경로.
+
+    Returns:
+        Tuple[Optional[Dict[str, Any]], Optional[str]]: 로드된 데이터와 오류 메시지.
+    """
+
+    try:
+        return load_portfolio_data_cached(str(json_path)), None
+    except FileNotFoundError as error:
+        return None, str(error)
+    except ValueError as error:  # pylint: disable=broad-except
+        return None, str(error)
 
 
 def render_sidebar_navigation() -> Tuple[str, Optional[str]]:
@@ -120,41 +171,102 @@ def prepare_chat_chain(api_key: Optional[str], pdf_path: Path) -> Tuple[Optional
     return chain, None
 
 
-def render_home_page() -> None:
-    """홈 화면 콘텐츠를 렌더링한다."""
-    st.title("👋 안녕하세요! 저의 포트폴리오에 오신 것을 환영합니다")
+def render_home_page(
+    portfolio_data: Optional[Dict[str, Any]],
+    error_message: Optional[str],
+) -> None:
+    """포트폴리오 데이터를 기반으로 홈 화면 콘텐츠를 렌더링한다.
+
+    Args:
+        portfolio_data (Optional[Dict[str, Any]]): `portfolio_data.json`에서 로드한 데이터.
+        error_message (Optional[str]): 데이터 로드 실패 시 사용자에게 안내할 오류 메시지.
+    """
+
+    st.title("👋 안녕하세요! 포트폴리오에 오신 것을 환영합니다")
+
+    if error_message:
+        st.error(error_message)
+        st.info("`portfolio_data.json` 파일이 존재하고 올바른 형식인지 확인해주세요.")
+        return
+
+    if not portfolio_data:
+        st.info("표시할 포트폴리오 데이터가 없습니다. JSON 파일을 업데이트한 뒤 다시 시도해주세요.")
+        return
+
+    personal_info = portfolio_data.get("personal_info", {})
+    about_info = portfolio_data.get("about", {})
+    projects = portfolio_data.get("projects", [])
+    experience_items = portfolio_data.get("experience", [])
+    skills = portfolio_data.get("skills", {})
+    languages = skills.get("languages", {}) if isinstance(skills, dict) else {}
+
+    name = personal_info.get("name", "포트폴리오 주인")
+    title = personal_info.get("title")
+    headline = f"{name} · {title}" if title else name
 
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        st.markdown(
-            """
-            ## 🚀 개발자 포트폴리오
+        st.subheader(headline)
+        description = about_info.get("description")
+        if description:
+            st.write(description)
 
-            이곳은 제가 작업한 프로젝트들과 기술 스택을 소개하는 공간입니다.
-            왼쪽 사이드바를 통해 다양한 섹션을 탐색해보세요!
+        interests = about_info.get("interests")
+        if interests:
+            st.markdown("### 💡 관심 분야")
+            st.markdown("\n".join([f"- {interest}" for interest in interests]))
 
-            ### ✨ 주요 특징
-            - **반응형 웹 디자인**: 모든 디바이스에서 최적화된 경험
-            - **인터랙티브 차트**: 데이터 시각화를 통한 직관적인 정보 전달
-            - **실시간 업데이트**: 최신 프로젝트와 기술 스택 정보
-            """
-        )
+        education = about_info.get("education")
+        if education:
+            st.markdown("### 🎓 교육")
+            st.write(education)
 
-        st.info(f"📅 마지막 업데이트: {datetime.now().strftime('%Y년 %m월 %d일')}")
+        if experience_items:
+            st.markdown("### 🧭 주요 경력")
+            for item in experience_items:
+                period = item.get("period", "기간 미상")
+                event = item.get("event", "세부 내용 미상")
+                st.markdown(f"- **{period}** · {event}")
 
     with col2:
-        st.markdown(
-            """
-            ### 📊 Quick Stats
-            """
-        )
+        st.markdown("### 📬 연락처")
+        contact_entries = [
+            ("이메일", personal_info.get("email")),
+            ("전화번호", personal_info.get("phone")),
+            ("위치", personal_info.get("location")),
+        ]
+        for label, value in contact_entries:
+            if value:
+                st.markdown(f"- **{label}**: {value}")
 
-        stats_data = {
-            "항목": ["프로젝트", "사용 언어", "경력"],
-            "개수": [5, 8, "2년+"],
-        }
-        st.table(pd.DataFrame(stats_data))
+        social_links = portfolio_data.get("social_links", {})
+        if social_links:
+            st.markdown("### 🌐 소셜 링크")
+            for label, url in social_links.items():
+                if url:
+                    st.markdown(f"- [{label}]({url})")
+
+    st.markdown("---")
+
+    metrics_columns = st.columns(3)
+    metrics_columns[0].metric("프로젝트 수", len(projects))
+    metrics_columns[1].metric("사용 언어", len(languages))
+    metrics_columns[2].metric("경력 이력", len(experience_items))
+
+    st.caption(f"📅 마지막 업데이트: {datetime.now().strftime('%Y년 %m월 %d일')}")
+
+    if projects:
+        st.markdown("### 🚀 대표 프로젝트")
+        for project in projects[:3]:
+            title_text = project.get("title", "이름 미정 프로젝트")
+            description_text = project.get("description") or "프로젝트 설명이 제공되지 않았습니다."
+            st.markdown(f"**{title_text}**")
+            st.write(description_text)
+
+            tech_stack = project.get("tech_stack")
+            if tech_stack:
+                st.caption("기술 스택: " + ", ".join(tech_stack))
 
 
 def render_about_page() -> None:
@@ -315,43 +427,55 @@ def render_skills_page() -> None:
         st.table(timeline_data)
 
 
-def render_contact_page() -> None:
-    """연락처 정보를 출력하고 메시지 폼을 제공한다."""
+def render_contact_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
+    """포트폴리오 데이터를 활용하여 연락처 정보를 출력하고 메시지 폼을 제공한다.
+
+    Args:
+        portfolio_data (Optional[Dict[str, Any]]): `portfolio_data.json`에서 로드한 데이터.
+    """
+
     st.title("📞 연락처 & 소셜 미디어")
+
+    personal_info = (portfolio_data or {}).get("personal_info", {})
+    social_links = (portfolio_data or {}).get("social_links", {})
+
+    default_contact = {
+        "email": "your.email@example.com",
+        "phone": "+82-10-1234-5678",
+        "location": "서울, 대한민국",
+    }
+
+    email_value = personal_info.get("email") or default_contact["email"]
+    phone_value = personal_info.get("phone") or default_contact["phone"]
+    location_value = personal_info.get("location") or default_contact["location"]
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("📬 연락 방법")
-        st.markdown(
-            """
-            ### 📧 이메일
-            **your.email@example.com**
+        st.markdown("### 📧 이메일")
+        st.markdown(f"**{email_value}**")
 
-            ### 📱 전화번호
-            **+82-10-1234-5678**
+        st.markdown("### 📱 전화번호")
+        st.markdown(f"**{phone_value}**")
 
-            ### 📍 위치
-            **서울, 대한민국**
-            """
-        )
+        st.markdown("### 📍 위치")
+        st.markdown(f"**{location_value}**")
 
     with col2:
         st.subheader("🌐 소셜 미디어")
-        st.markdown(
-            """
-            ### 🔗 링크
-            - [GitHub](https://github.com/yourusername)
-            - [LinkedIn](https://linkedin.com/in/yourusername)
-            - [블로그](https://yourblog.com)
-            - [Instagram](https://instagram.com/yourusername)
-            """
-        )
+        if social_links:
+            st.markdown("### 🔗 링크")
+            for label, url in social_links.items():
+                if url:
+                    st.markdown(f"- [{label}]({url})")
+        else:
+            st.info("등록된 소셜 링크가 없습니다. `portfolio_data.json`을 업데이트해보세요.")
 
     st.subheader("✉️ 메시지 보내기")
     with st.form("contact_form"):
         name = st.text_input("이름")
-        email = st.text_input("이메일")
+        email = st.text_input("이메일", value=email_value)
         subject = st.text_input("제목")
         message = st.text_area("메시지", height=150)
 
@@ -447,13 +571,17 @@ def main() -> None:
     initialize_session_state()
     page, api_key = render_sidebar_navigation()
 
+    portfolio_data, portfolio_error = prepare_portfolio_data(PORTFOLIO_DATA_PATH)
+    if portfolio_error:
+        st.sidebar.error("포트폴리오 데이터를 불러오지 못했습니다. 홈 화면에서 상세 내용을 확인해주세요.")
+
     chat_chain: Optional[Any] = None
     chat_error: Optional[str] = None
     if page == "🤖 챗봇":
         chat_chain, chat_error = prepare_chat_chain(api_key, PDF_PATH)
 
     if page == "🏠 홈":
-        render_home_page()
+        render_home_page(portfolio_data, portfolio_error)
     elif page == "👤 소개":
         render_about_page()
     elif page == "💼 프로젝트":
@@ -461,7 +589,7 @@ def main() -> None:
     elif page == "🛠️ 기술 스택":
         render_skills_page()
     elif page == "📞 연락처":
-        render_contact_page()
+        render_contact_page(portfolio_data)
     elif page == "🤖 챗봇":
         render_chat_page(chat_chain, chat_error)
 

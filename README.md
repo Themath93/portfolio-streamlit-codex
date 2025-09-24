@@ -25,7 +25,15 @@ portfolio-streamlit-codex/
 pip install -r requirements.txt
 ```
 
-### 2. 애플리케이션 실행
+### 2. 환경 변수 설정
+
+프로젝트 루트에 `.env` 파일을 생성하고 OpenAI API 키를 저장합니다. 애플리케이션은 실행 시 `.env` 파일을 자동으로 로드합니다.
+
+```
+OPENAI_API_KEY=sk-...
+```
+
+### 3. 애플리케이션 실행
 
 ```bash
 streamlit run app.py
@@ -61,11 +69,17 @@ python -m streamlit run app.py
 - **프로젝트 필터링**: 카테고리별 프로젝트 보기
 - **LangChain 챗봇**: MultiQueryRetriever와 FAISS를 활용한 포트폴리오 질의응답
 
+### 🗂 데이터 관리
+
+- 홈 화면은 `portfolio_data.json` 파일의 내용을 기반으로 개인 소개, 경력, 대표 프로젝트를 동적으로 렌더링합니다.
+- 연락처 페이지 역시 동일한 JSON 데이터를 참조하여 이메일, 전화번호, 소셜 링크를 표시합니다.
+- JSON 필드를 수정하면 앱을 재실행하지 않아도 Streamlit의 자동 새로고침을 통해 최신 정보가 즉시 반영됩니다.
+
 ## LangChain 기반 챗봇 사용법
 
 1. **포트폴리오 PDF 교체**: `assets/portfolio.pdf` 파일을 자신의 최신 포트폴리오 PDF로 교체합니다.
 2. **OpenAI API Key 설정**:
-   - 환경 변수 `OPENAI_API_KEY`를 설정하거나,
+   - `.env` 파일 또는 시스템 환경 변수에 `OPENAI_API_KEY`를 설정하거나,
    - 앱 실행 후 사이드바에서 API 키를 직접 입력합니다.
 3. **애플리케이션 실행**: 위 설치 절차에 따라 앱을 실행합니다.
 4. **챗봇 페이지 이동**: 사이드바에서 `🤖 챗봇` 페이지를 선택한 뒤 질문을 입력하면, LangChain `MultiQueryRetriever`와 `faiss-cpu` 벡터 DB, OpenAI `text-embedding-3-small` 임베딩 모델, `gpt-5-mini` 챗 모델을 사용해 답변을 생성합니다.
