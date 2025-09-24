@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import pandas as pd
 import plotly.express as px
@@ -25,8 +25,22 @@ PORTFOLIO_DATA_PATH = Path("portfolio_data.json")
 load_dotenv()
 
 
+SKILL_LEVEL_SCORES = {
+    "최상": 95,
+    "상": 90,
+    "중상": 80,
+    "중": 70,
+    "중하": 60,
+    "하": 50,
+}
+
+
 def configure_page() -> None:
-    """Streamlit 페이지 기본 구성을 수행한다."""
+    """Streamlit 페이지 기본 구성을 수행한다.
+
+    Returns:
+        None: 반환값이 없다.
+    """
     st.set_page_config(
         page_title="포트폴리오 - Portfolio",
         page_icon="👨‍💻",
@@ -36,7 +50,11 @@ def configure_page() -> None:
 
 
 def initialize_session_state() -> None:
-    """애플리케이션에 필요한 세션 상태를 초기화한다."""
+    """애플리케이션에 필요한 세션 상태를 초기화한다.
+
+    Returns:
+        None: 반환값이 없다.
+    """
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
     if "openai_api_key" not in st.session_state:
@@ -171,6 +189,67 @@ def prepare_chat_chain(api_key: Optional[str], pdf_path: Path) -> Tuple[Optional
     return chain, None
 
 
+def _normalize_project_stack(project: Dict[str, Any]) -> List[str]:
+    """프로젝트 사전에서 기술 스택 정보를 표준화된 리스트로 반환한다.
+
+    Args:
+        project (Dict[str, Any]): 프로젝트 정보를 담은 사전.
+
+    Returns:
+        List[str]: 문자열로 구성된 기술 스택 목록. 정보가 없다면 빈 리스트를 반환한다.
+    """
+
+    stack_value = project.get("tech_stack") or project.get("teck_stack") or []
+    if isinstance(stack_value, (list, tuple, set)):
+        return [str(item) for item in stack_value]
+    if isinstance(stack_value, str):
+        return [stack.strip() for stack in stack_value.split(",") if stack.strip()]
+    return []
+
+
+def _build_skill_dataframe(skill_items: Dict[str, Any], label_column: str) -> pd.DataFrame:
+    """기술 사전을 시각화에 활용할 수 있는 데이터프레임으로 변환한다.
+
+    Args:
+        skill_items (Dict[str, Any]): 기술 이름을 키로, 숙련도 표기를 값으로 갖는 사전.
+        label_column (str): 기술 이름을 표시할 열 제목.
+
+    Returns:
+        pd.DataFrame: 기술, 숙련도 점수, 숙련도 표기를 포함하는 데이터프레임.
+    """
+
+    records: List[Dict[str, Any]] = []
+    for skill_name, raw_level in (skill_items or {}).items():
+        level_label = str(raw_level)
+        level_score = SKILL_LEVEL_SCORES.get(level_label, 60)
+        records.append(
+            {
+                label_column: skill_name,
+                "숙련도 점수": level_score,
+                "숙련도": level_label,
+            }
+        )
+
+    return pd.DataFrame(records)
+
+
+def _extract_experience_periods(experience_items: Iterable[Dict[str, Any]]) -> pd.DataFrame:
+    """경력 정보 컬렉션을 표 형태로 변환한다.
+
+    Args:
+        experience_items (Iterable[Dict[str, Any]]): 기간 및 주요 활동을 담은 경력 정보 목록.
+
+    Returns:
+        pd.DataFrame: 경력 기간과 활동을 포함한 데이터프레임. 데이터가 없다면 빈 데이터프레임을 반환한다.
+    """
+
+    records = [
+        {"기간": item.get("period", "기간 미상"), "주요 활동": item.get("event", "내용 미상")}
+        for item in experience_items
+    ]
+    return pd.DataFrame(records)
+
+
 def render_home_page(
     portfolio_data: Optional[Dict[str, Any]],
     error_message: Optional[str],
@@ -178,7 +257,7 @@ def render_home_page(
     """포트폴리오 데이터를 기반으로 홈 화면 콘텐츠를 렌더링한다.
 
     Args:
-        portfolio_data (Optional[Dict[str, Any]]): `portfolio_data.json`에서 로드한 데이터.
+        portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
         error_message (Optional[str]): 데이터 로드 실패 시 사용자에게 안내할 오류 메시지.
     """
 
@@ -213,7 +292,7 @@ def render_home_page(
             st.write(description)
 
         interests = about_info.get("interests")
-        if interests:
+        if isinstance(interests, list) and interests:
             st.markdown("### 💡 관심 분야")
             st.markdown("\n".join([f"- {interest}" for interest in interests]))
 
@@ -221,6 +300,11 @@ def render_home_page(
         if education:
             st.markdown("### 🎓 교육")
             st.write(education)
+
+        strengths = about_info.get("strengths")
+        if isinstance(strengths, list) and strengths:
+            st.markdown("### 💪 강점")
+            st.markdown("\n".join([f"- {strength}" for strength in strengths]))
 
         if experience_items:
             st.markdown("### 🧭 주요 경력")
@@ -261,170 +345,217 @@ def render_home_page(
         for project in projects[:3]:
             title_text = project.get("title", "이름 미정 프로젝트")
             description_text = project.get("description") or "프로젝트 설명이 제공되지 않았습니다."
-            st.markdown(f"**{title_text}**")
-            st.write(description_text)
+            company = project.get("company")
+            period = project.get("period")
+            goal = project.get("goal")
+            output = project.get("output")
 
-            tech_stack = project.get("tech_stack")
+            st.markdown(f"**{title_text}**")
+            if company or period:
+                st.caption(" · ".join(filter(None, [company, period])))
+            st.write(description_text)
+            if goal:
+                st.markdown(f"- 목표: {goal}")
+            if output:
+                st.markdown(f"- 성과: {output}")
+
+            tech_stack = _normalize_project_stack(project)
             if tech_stack:
                 st.caption("기술 스택: " + ", ".join(tech_stack))
 
 
-def render_about_page() -> None:
-    """소개 페이지 콘텐츠를 출력한다."""
-    st.title("👤 About Me")
+def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
+    """소개 페이지 콘텐츠를 포트폴리오 데이터 기반으로 출력한다.
 
-    col1, col2 = st.columns([1, 2])
+    Args:
+        portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
+    """
+
+    st.title("👤 소개")
+
+    if not portfolio_data:
+        st.info("포트폴리오 데이터가 존재하지 않아 기본 소개 정보를 표시합니다.")
+        return
+
+    personal_info = portfolio_data.get("personal_info", {})
+    about_info = portfolio_data.get("about", {})
+    experience_items = portfolio_data.get("experience", [])
+
+    name = personal_info.get("name")
+    title = personal_info.get("title")
+    headline = " · ".join(filter(None, [name, title])) if (name or title) else "포트폴리오 소개"
+
+    st.subheader(headline)
+
+    description = about_info.get("description")
+    if description:
+        st.write(description)
+
+    col1, col2 = st.columns(2)
 
     with col1:
-        st.image(
-            "https://via.placeholder.com/300x300?text=Profile+Photo",
-            caption="프로필 사진",
-            width=250,
-        )
+        interests = about_info.get("interests")
+        if isinstance(interests, list) and interests:
+            st.markdown("### 🎯 관심 분야")
+            st.markdown("\n".join([f"- {interest}" for interest in interests]))
+
+        strengths = about_info.get("strengths")
+        if isinstance(strengths, list) and strengths:
+            st.markdown("### 💪 강점")
+            st.markdown("\n".join([f"- {strength}" for strength in strengths]))
 
     with col2:
-        st.markdown(
-            """
-            ## 안녕하세요! 👋
+        education = about_info.get("education")
+        if education:
+            st.markdown("### 🎓 교육")
+            st.write(education)
 
-            저는 **풀스택 개발자**로, 웹 개발과 데이터 분석에 열정을 가지고 있습니다.
+        contact_entries = [
+            ("이메일", personal_info.get("email")),
+            ("전화번호", personal_info.get("phone")),
+            ("위치", personal_info.get("location")),
+        ]
+        st.markdown("### 📬 연락처")
+        for label, value in contact_entries:
+            if value:
+                st.markdown(f"- **{label}**: {value}")
 
-            ### 🎯 관심 분야
-            - **웹 개발**: React, Python, Django
-            - **데이터 사이언스**: Python, Pandas, Matplotlib
-            - **클라우드**: AWS, Docker
-            - **AI/ML**: 머신러닝, 딥러닝
-
-            ### 🎓 교육
-            - 컴퓨터공학 학사 (2020-2024)
-            - 각종 온라인 코스 수료
-
-            ### 💪 강점
-            - 문제 해결 능력
-            - 팀워크 및 협업
-            - 새로운 기술 학습 의욕
-            - 창의적 사고
-            """
-        )
+    experience_df = _extract_experience_periods(experience_items)
+    if not experience_df.empty:
+        st.markdown("### 🧭 경력 타임라인")
+        st.table(experience_df)
 
 
-def render_projects_page() -> None:
-    """프로젝트 목록을 렌더링한다."""
+def render_projects_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
+    """프로젝트 데이터를 기반으로 상세 정보를 렌더링한다.
+
+    Args:
+        portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
+    """
+
     st.title("💼 프로젝트 포트폴리오")
 
-    project_type = st.selectbox("프로젝트 유형", ["전체", "웹 개발", "데이터 분석", "AI/ML"])
+    projects: List[Dict[str, Any]] = []
+    if portfolio_data:
+        raw_projects = portfolio_data.get("projects", [])
+        if isinstance(raw_projects, list):
+            projects = [project for project in raw_projects if isinstance(project, dict)]
 
-    projects = [
-        {
-            "title": "E-커머스 웹사이트",
-            "type": "웹 개발",
-            "description": "React와 Django를 사용한 온라인 쇼핑몰",
-            "tech_stack": ["React", "Django", "PostgreSQL", "AWS"],
-            "github": "https://github.com/example/project1",
-            "demo": "https://example.com",
-        },
-        {
-            "title": "데이터 시각화 대시보드",
-            "type": "데이터 분석",
-            "description": "Streamlit을 사용한 인터랙티브 대시보드",
-            "tech_stack": ["Python", "Streamlit", "Plotly", "Pandas"],
-            "github": "https://github.com/example/project2",
-            "demo": "https://example.com",
-        },
-        {
-            "title": "머신러닝 예측 모델",
-            "type": "AI/ML",
-            "description": "부동산 가격 예측 모델",
-            "tech_stack": ["Python", "Scikit-learn", "Jupyter", "Matplotlib"],
-            "github": "https://github.com/example/project3",
-            "demo": None,
-        },
-    ]
+    if not projects:
+        st.info("등록된 프로젝트가 없습니다. JSON 파일을 업데이트해주세요.")
+        return
 
-    if project_type != "전체":
-        projects = [project for project in projects if project["type"] == project_type]
+    companies = sorted({project.get("company", "기타") for project in projects})
+    filter_options = ["전체"] + companies
+    selected_company = st.selectbox("회사별로 프로젝트를 필터링하세요", filter_options)
 
-    for project in projects:
-        with st.expander(f"📁 {project['title']}", expanded=True):
-            col1, col2 = st.columns([2, 1])
+    filtered_projects = (
+        [project for project in projects if project.get("company", "기타") == selected_company]
+        if selected_company != "전체"
+        else projects
+    )
+
+    for project in filtered_projects:
+        title_text = project.get("title", "이름 미정 프로젝트")
+        with st.expander(f"📁 {title_text}", expanded=True):
+            col1, col2 = st.columns([3, 2])
 
             with col1:
-                st.markdown(f"**설명**: {project['description']}")
-                st.markdown(f"**카테고리**: {project['type']}")
-                tech_tags = " ".join([f"`{tech}`" for tech in project["tech_stack"]])
-                st.markdown(f"**기술 스택**: {tech_tags}")
+                st.markdown(f"**회사**: {project.get('company', '기관 미상')}")
+                st.markdown(f"**기간**: {project.get('period', '기간 미상')}")
+                goal = project.get("goal")
+                if goal:
+                    st.markdown(f"**목표**: {goal}")
+                description = project.get("description")
+                if description:
+                    st.markdown(f"**설명**: {description}")
+                output = project.get("output")
+                if output:
+                    st.markdown(f"**성과**: {output}")
 
             with col2:
-                if project["github"]:
-                    st.markdown(f"[📱 GitHub 링크]({project['github']})")
-                if project["demo"]:
-                    st.markdown(f"[🌐 데모 보기]({project['demo']})")
+                tech_stack = _normalize_project_stack(project)
+                if tech_stack:
+                    st.markdown("**기술 스택**")
+                    st.markdown(", ".join(tech_stack))
 
 
-def render_skills_page() -> None:
-    """기술 스택 정보를 시각화한다."""
+def render_skills_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
+    """기술 스택과 경력 정보를 시각화한다.
+
+    Args:
+        portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
+    """
+
     st.title("🛠️ 기술 스택 & 경험")
 
-    skills_data = {
-        "언어": ["Python", "JavaScript", "Java", "SQL"],
-        "숙련도": [90, 85, 75, 80],
-    }
+    if not portfolio_data:
+        st.info("포트폴리오 데이터가 없어 기본 예시를 표시하지 않습니다. JSON 파일을 확인해주세요.")
+        return
 
-    frameworks_data = {
-        "프레임워크/라이브러리": ["React", "Django", "Flask", "Streamlit", "Pandas"],
-        "숙련도": [80, 85, 70, 90, 85],
-    }
-
-    tools_data = {
-        "도구": ["Git", "Docker", "AWS", "PostgreSQL"],
-        "숙련도": [85, 70, 65, 80],
-    }
+    skills_data = portfolio_data.get("skills", {}) if isinstance(portfolio_data, dict) else {}
+    languages_df = _build_skill_dataframe(skills_data.get("languages", {}), "언어")
+    frameworks_df = _build_skill_dataframe(skills_data.get("frameworks", {}), "프레임워크/라이브러리")
+    tools_df = _build_skill_dataframe(skills_data.get("tools", {}), "도구")
+    experience_df = _extract_experience_periods(portfolio_data.get("experience", []))
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("💻 프로그래밍 언어")
-        fig1 = px.bar(
-            x=skills_data["숙련도"],
-            y=skills_data["언어"],
-            orientation="h",
-            color=skills_data["숙련도"],
-            color_continuous_scale="viridis",
-        )
-        fig1.update_layout(height=300, showlegend=False)
-        st.plotly_chart(fig1, use_container_width=True)
+        if not languages_df.empty:
+            fig1 = px.bar(
+                languages_df,
+                x="숙련도 점수",
+                y="언어",
+                orientation="h",
+                color="숙련도 점수",
+                hover_data=["숙련도"],
+                color_continuous_scale="viridis",
+            )
+            fig1.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig1, use_container_width=True)
+        else:
+            st.info("등록된 프로그래밍 언어 정보가 없습니다.")
 
         st.subheader("🔧 도구 & 플랫폼")
-        fig3 = px.bar(
-            x=tools_data["숙련도"],
-            y=tools_data["도구"],
-            orientation="h",
-            color=tools_data["숙련도"],
-            color_continuous_scale="plasma",
-        )
-        fig3.update_layout(height=300, showlegend=False)
-        st.plotly_chart(fig3, use_container_width=True)
+        if not tools_df.empty:
+            fig3 = px.bar(
+                tools_df,
+                x="숙련도 점수",
+                y="도구",
+                orientation="h",
+                color="숙련도 점수",
+                hover_data=["숙련도"],
+                color_continuous_scale="plasma",
+            )
+            fig3.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig3, use_container_width=True)
+        else:
+            st.info("등록된 도구 정보가 없습니다.")
 
     with col2:
         st.subheader("📚 프레임워크 & 라이브러리")
-        fig2 = px.bar(
-            x=frameworks_data["숙련도"],
-            y=frameworks_data["프레임워크/라이브러리"],
-            orientation="h",
-            color=frameworks_data["숙련도"],
-            color_continuous_scale="cividis",
-        )
-        fig2.update_layout(height=300, showlegend=False)
-        st.plotly_chart(fig2, use_container_width=True)
+        if not frameworks_df.empty:
+            fig2 = px.bar(
+                frameworks_df,
+                x="숙련도 점수",
+                y="프레임워크/라이브러리",
+                orientation="h",
+                color="숙련도 점수",
+                hover_data=["숙련도"],
+                color_continuous_scale="cividis",
+            )
+            fig2.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.info("등록된 프레임워크 정보가 없습니다.")
 
-        st.subheader("📅 경험 타임라인")
-        timeline_data = pd.DataFrame(
-            {
-                "연도": [2022, 2023, 2024],
-                "경험": ["Python 학습 시작", "웹 개발 프로젝트", "AI/ML 프로젝트"],
-            }
-        )
-        st.table(timeline_data)
+        st.subheader("📅 경력 타임라인")
+        if not experience_df.empty:
+            st.table(experience_df)
+        else:
+            st.info("경력 정보가 없습니다. JSON 파일을 업데이트해주세요.")
 
 
 def render_contact_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
@@ -553,7 +684,11 @@ def render_chat_page(chat_chain: Optional[Any], error_message: Optional[str]) ->
 
 
 def render_footer() -> None:
-    """페이지 하단의 푸터를 출력한다."""
+    """페이지 하단의 푸터를 출력한다.
+
+    Returns:
+        None: 반환값이 없다.
+    """
     st.markdown("---")
     st.markdown(
         """
@@ -566,7 +701,11 @@ def render_footer() -> None:
 
 
 def main() -> None:
-    """포트폴리오 애플리케이션의 진입점을 정의한다."""
+    """포트폴리오 애플리케이션의 진입점을 정의한다.
+
+    Returns:
+        None: 반환값이 없다.
+    """
     configure_page()
     initialize_session_state()
     page, api_key = render_sidebar_navigation()
@@ -583,11 +722,11 @@ def main() -> None:
     if page == "🏠 홈":
         render_home_page(portfolio_data, portfolio_error)
     elif page == "👤 소개":
-        render_about_page()
+        render_about_page(portfolio_data)
     elif page == "💼 프로젝트":
-        render_projects_page()
+        render_projects_page(portfolio_data)
     elif page == "🛠️ 기술 스택":
-        render_skills_page()
+        render_skills_page(portfolio_data)
     elif page == "📞 연락처":
         render_contact_page(portfolio_data)
     elif page == "🤖 챗봇":

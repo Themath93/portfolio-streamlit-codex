@@ -53,10 +53,10 @@ python -m streamlit run app.py
 
 ### 📄 페이지 구성
 
-1. **🏠 홈** - 환영 메시지 및 개요
-2. **👤 소개** - 개인 정보 및 경력
-3. **💼 프로젝트** - 수행한 프로젝트들
-4. **🛠️ 기술 스택** - 보유 기술 및 숙련도
+1. **🏠 홈** - 환영 메시지, 주요 경력, 대표 프로젝트 요약
+2. **👤 소개** - `portfolio_data.json`의 소개/경력 정보를 구조화해 표시
+3. **💼 프로젝트** - JSON 프로젝트 정보를 회사별 필터와 함께 제공
+4. **🛠️ 기술 스택** - JSON 숙련도 값을 시각화하여 표시
 5. **📞 연락처** - 연락처 및 소셜 미디어
 6. **🤖 챗봇** - 포트폴리오 PDF 기반 질의응답
 
@@ -66,13 +66,17 @@ python -m streamlit run app.py
 - **인터랙티브 차트**: Plotly를 사용한 데이터 시각화
 - **다중 페이지**: 사이드바 네비게이션
 - **연락 폼**: 방문자 메시지 수신
-- **프로젝트 필터링**: 카테고리별 프로젝트 보기
+- **JSON 기반 화면 구성**: 홈, 소개, 프로젝트, 기술 스택 페이지가 `portfolio_data.json`을 실시간으로 반영
+- **프로젝트 필터링**: 회사별 프로젝트 보기 및 목표/성과 요약 제공
 - **LangChain 챗봇**: MultiQueryRetriever와 FAISS를 활용한 포트폴리오 질의응답
 
 ### 🗂 데이터 관리
 
 - 홈 화면은 `portfolio_data.json` 파일의 내용을 기반으로 개인 소개, 경력, 대표 프로젝트를 동적으로 렌더링합니다.
-- 연락처 페이지 역시 동일한 JSON 데이터를 참조하여 이메일, 전화번호, 소셜 링크를 표시합니다.
+- 소개 페이지는 `about`, `personal_info`, `experience` 섹션을 활용하여 관심사, 강점, 교육, 경력을 자동으로 보여줍니다.
+- 프로젝트 페이지는 JSON의 `projects` 배열을 회사별 필터와 함께 렌더링하며, `tech_stack`/`teck_stack` 필드를 모두 인식합니다.
+- 기술 스택 페이지는 언어/프레임워크/도구 숙련도를 시각화하고, 한국어 숙련도 표기를 점수로 변환해 차트를 생성합니다.
+- 연락처 페이지는 동일한 JSON 데이터를 참조하여 이메일, 전화번호, 소셜 링크를 표시합니다.
 - JSON 필드를 수정하면 앱을 재실행하지 않아도 Streamlit의 자동 새로고침을 통해 최신 정보가 즉시 반영됩니다.
 
 ## LangChain 기반 챗봇 사용법
@@ -89,7 +93,8 @@ python -m streamlit run app.py
 
 ### 페이지 콘텐츠 수정
 
-- `app.py`의 각 `render_*` 함수에서 텍스트, 차트, 표 데이터를 변경하여 페이지 내용을 자유롭게 수정할 수 있습니다.
+- `portfolio_data.json`을 수정하면 홈/소개/프로젝트/기술 스택/연락처 페이지의 콘텐츠가 즉시 반영됩니다.
+- `app.py`의 각 `render_*` 함수는 JSON 구조에 맞춰 작성되어 있으며, 맞춤형 섹션을 추가하려면 해당 함수의 로직을 확장하면 됩니다.
 - 챗봇 프롬프트나 검색 전략을 조정하려면 `portfolio_chatbot.py` 내부 로직을 수정하세요.
 
 ### 스타일 변경
@@ -149,9 +154,8 @@ MIT License
 
 ## 문의
 
-- 이메일: your.email@example.com
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your Name](https://linkedin.com/in/yourusername)
+- 이메일: lms46784678@gmail.com
+- GitHub: [@Themath93](https://github.com/Themath93)
 
 ---
 
