@@ -1,107 +1,123 @@
 {
   "personal_info": {
-    "name": "개발자 이름",
-    "title": "풀스택 개발자",
-    "email": "your.email@example.com",
-    "phone": "+82-10-1234-5678",
+    "name": "윤병우",
+    "title": "데이터 엔지니어",
+    "email": "lms46784678@gmail.com",
+    "phone": "+82-10-4695-5394",
     "location": "서울, 대한민국"
   },
   "about": {
-    "description": "웹 개발과 데이터 분석에 열정을 가진 풀스택 개발자입니다.",
+    "description": "데이터 엔지니어링, Snowflake, AI 챗봇 등 서비스를 구성·운영했고 공공기관 챗봇 프로젝트도 수행했습니다. 새로운 기술은 문서부터 확인하는 습관이 있으며, 오픈소스 문서 오타 수정으로 기여한 경험이 있습니다.",
     "interests": [
-      "웹 개발",
-      "데이터 사이언스",
-      "클라우드",
-      "AI/ML"
+      "데이터 엔지니어링",
+      "AI 챗봇",
+      "Snowflake",
+      "ETL/크롤링"
     ],
-    "education": "컴퓨터공학 학사 (2020-2024)",
-    "strengths": [
-      "문제 해결 능력",
-      "팀워크 및 협업",
-      "새로운 기술 학습",
-      "창의적 사고"
-    ]
+    "education": "계양고등학교 (2008.03 - 2011.02); 멀티캠퍼스 데이터 엔지니어 과정 (2022.05 - 2022.11)",
+    "strengths": []
   },
   "projects": [
     {
-      "title": "E-커머스 웹사이트",
-      "type": "웹 개발",
-      "description": "React와 Django를 사용한 온라인 쇼핑몰",
+      "title": "셀러키워드 1.7.2 고도화",
+      "type": null,
+      "description": "네이버 쇼핑 데이터(Hidden API) 대량 실시간 스크래핑 로직 개발",
       "tech_stack": [
-        "React",
-        "Django",
-        "PostgreSQL",
-        "AWS"
+        "Lambda"
       ],
-      "github": "https://github.com/example/project1",
-      "demo": "https://example.com"
+      "github": null,
+      "demo": null
     },
     {
-      "title": "데이터 시각화 대시보드",
-      "type": "데이터 분석",
-      "description": "Streamlit을 사용한 인터랙티브 대시보드",
+      "title": "셀러박스 2.3 고도화",
+      "type": null,
+      "description": "수집 로직 비동기화 및 다양한 수집 서버를 하나의 도메인으로 통합",
       "tech_stack": [
-        "Python",
-        "Streamlit",
-        "Plotly",
-        "Pandas"
+        "EC2",
+        "Git",
+        "GitHub Actions",
+        "Lambda"
       ],
-      "github": "https://github.com/example/project2",
-      "demo": "https://example.com"
+      "github": null,
+      "demo": null
     },
     {
-      "title": "머신러닝 예측 모델",
-      "type": "AI/ML",
-      "description": "부동산 가격 예측 모델",
+      "title": "스노우플레이크 DW 구축 [소복소복]",
+      "type": null,
+      "description": "실시간 주문 확인 및 개인화 마케팅을 위한 데이터 웨어하우스 구축",
+      "tech_stack": [],
+      "github": null,
+      "demo": null
+    },
+    {
+      "title": "스노우플레이크 DW 고도화",
+      "type": null,
+      "description": "데이터 웨어하우스 운영/성능 고도화",
+      "tech_stack": [],
+      "github": null,
+      "demo": null
+    },
+    {
+      "title": "셀러박스 3.0 수집 로직 개편",
+      "type": null,
+      "description": "수집 로직 서비스 신뢰도 제고를 위한 수집 로직 고도화",
+      "tech_stack": [],
+      "github": null,
+      "demo": null
+    },
+    {
+      "title": "SQL Agent [셀러박스]",
+      "type": null,
+      "description": "여러 오픈마켓 데이터와 직접 대화할 수 있는 챗봇 구성",
       "tech_stack": [
-        "Python",
-        "Scikit-learn",
-        "Jupyter",
-        "Matplotlib"
+        "LangGraph",
+        "SQL"
       ],
-      "github": "https://github.com/example/project3",
+      "github": null,
+      "demo": null
+    },
+    {
+      "title": "Chat My Excel",
+      "type": null,
+      "description": "Excel 파일을 토큰 적게, 빠르게 읽고 답변·차트 생성이 가능한 RAG 챗봇/인터랙티브 파트 구성",
+      "tech_stack": [
+        "LangGraph"
+      ],
+      "github": null,
+      "demo": null
+    },
+    {
+      "title": "공공기관 지방세 답변 챗봇",
+      "type": null,
+      "description": "지방세 관련 질의응답이 가능한 챗봇 구축",
+      "tech_stack": [],
+      "github": null,
       "demo": null
     }
   ],
   "skills": {
     "languages": {
-      "Python": 90,
-      "JavaScript": 85,
-      "Java": 75,
-      "SQL": 80
+      "Python": "중"
     },
     "frameworks": {
-      "React": 80,
-      "Django": 85,
-      "Flask": 70,
-      "Streamlit": 90,
-      "Pandas": 85
+      "FastAPI": "중"
     },
     "tools": {
-      "Git": 85,
-      "Docker": 70,
-      "AWS": 65,
-      "PostgreSQL": 80
+      "Kafka": "중",
+      "Airflow": "중"
     }
   },
   "experience": [
     {
-      "year": 2022,
-      "event": "Python 학습 시작"
+      "period": "2025.09 - 현재",
+      "event": "(주)한국신용데이터 데이터 엔지니어"
     },
     {
-      "year": 2023,
-      "event": "웹 개발 프로젝트"
-    },
-    {
-      "year": 2024,
-      "event": "AI/ML 프로젝트"
+      "period": "2023.11 - 2025.09",
+      "event": "(주)서클플랫폼 데이터 엔지니어"
     }
   ],
   "social_links": {
-    "github": "https://github.com/yourusername",
-    "linkedin": "https://linkedin.com/in/yourusername",
-    "blog": "https://yourblog.com",
-    "instagram": "https://instagram.com/yourusername"
+    "github": "https://github.com/Themath93"
   }
 }
