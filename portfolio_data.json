@@ -18,82 +18,86 @@
     "strengths": []
   },
   "projects": [
-    {
-      "title": "셀러키워드 1.7.2 고도화",
-      "type": null,
-      "description": "네이버 쇼핑 데이터(Hidden API) 대량 실시간 스크래핑 로직 개발",
-      "tech_stack": [
-        "Lambda"
-      ],
-      "github": null,
-      "demo": null
-    },
-    {
-      "title": "셀러박스 2.3 고도화",
-      "type": null,
-      "description": "수집 로직 비동기화 및 다양한 수집 서버를 하나의 도메인으로 통합",
-      "tech_stack": [
-        "EC2",
-        "Git",
-        "GitHub Actions",
-        "Lambda"
-      ],
-      "github": null,
-      "demo": null
-    },
-    {
-      "title": "스노우플레이크 DW 구축 [소복소복]",
-      "type": null,
-      "description": "실시간 주문 확인 및 개인화 마케팅을 위한 데이터 웨어하우스 구축",
-      "tech_stack": [],
-      "github": null,
-      "demo": null
-    },
-    {
-      "title": "스노우플레이크 DW 고도화",
-      "type": null,
-      "description": "데이터 웨어하우스 운영/성능 고도화",
-      "tech_stack": [],
-      "github": null,
-      "demo": null
-    },
-    {
-      "title": "셀러박스 3.0 수집 로직 개편",
-      "type": null,
-      "description": "수집 로직 서비스 신뢰도 제고를 위한 수집 로직 고도화",
-      "tech_stack": [],
-      "github": null,
-      "demo": null
-    },
-    {
-      "title": "SQL Agent [셀러박스]",
-      "type": null,
-      "description": "여러 오픈마켓 데이터와 직접 대화할 수 있는 챗봇 구성",
-      "tech_stack": [
-        "LangGraph",
-        "SQL"
-      ],
-      "github": null,
-      "demo": null
-    },
-    {
-      "title": "Chat My Excel",
-      "type": null,
-      "description": "Excel 파일을 토큰 적게, 빠르게 읽고 답변·차트 생성이 가능한 RAG 챗봇/인터랙티브 파트 구성",
-      "tech_stack": [
-        "LangGraph"
-      ],
-      "github": null,
-      "demo": null
-    },
-    {
-      "title": "공공기관 지방세 답변 챗봇",
-      "type": null,
-      "description": "지방세 관련 질의응답이 가능한 챗봇 구축",
-      "tech_stack": [],
-      "github": null,
-      "demo": null
-    }
+  {
+    "id": "5d63882b14",
+    "title": "셀러키워드 1.7.2 고도화",
+    "company": "서클플랫폼",
+    "period": "2023.12 ~ 2024.04",
+    "goal": "네이버 쇼핑 데이터(Hidden API) 대량 실시간 스크래핑 로직 개발",
+    "description": "키워드 경쟁 정도, 시장성, 광고비를 한눈에 제공하기 위해 다양한 쇼핑데이터를 비동기 방식으로 수집하고 최적화하여 인사이트를 제공.",
+    "teck_stack": ["AWS Lambda", "FastAPI", "IP Proxy", "Fakeheaders"],
+    "output": "월 2000만 건 데이터 안정적 수집, Lambda 프록시 전환으로 비용 80% 절감(연 720만 원), 상품모니터링 등 추가 서비스 요구조건 충족"
+  },
+  {
+    "id": "1a1ed0a1f3",
+    "title": "셀러박스 2.3 고도화",
+    "company": "서클플랫폼",
+    "period": "2024.03 ~ 2024.08",
+    "goal": "수집 로직 비동기화 및 다양한 수집 서버를 하나의 도메인으로 통합",
+    "description": "모든 로직을 비동기화하고 EC2에서 Lambda로 전환하여 비용 절감과 확장성 확보, API Gateway로 인증/수집 서버를 통합 관리.",
+    "teck_stack": ["AWS Lambda", "EC2", "API Gateway", "asyncio", "GitHub Actions"],
+    "output": "수집 시간 60% 단축, 주기 30분→10분 개선, 8개 API 서버를 도메인으로 통합, 배포 시간 90% 이상 단축"
+  },
+  {
+    "id": "3ab1b8097c",
+    "title": "스노우플레이크 DW 구축 [소복소복]",
+    "company": "서클플랫폼",
+    "period": "2024.11 ~ 2025.09",
+    "goal": "브랜드 통합앱 점주들이 실시간 주문 확인과 개인화 마케팅을 할 수 있도록 데이터 웨어하우스 구축",
+    "description": "각 브랜드의 RDS를 Snowflake로 이관하고 준실시간 데이터 동기화 환경을 구성하여 분석 환경 개선.",
+    "teck_stack": ["Snowflake", "AWS DMS", "S3", "Parquet", "Snowpipe"],
+    "output": "기존 3일 지연 분석 환경을 준실시간(최소 10초 이내) 분석 환경으로 전환, 복잡한 쿼리 수행 가능"
+  },
+  {
+    "id": "a7f724c1cb",
+    "title": "스노우플레이크 DW 고도화",
+    "company": "서클플랫폼",
+    "period": "2025.02 ~ 2025.09",
+    "goal": "점주앱의 쿼리 및 파이프라인 비용 절감",
+    "description": "B/E API 쿼리 검토와 SpeedLayer RDS 설계 및 스노우플레이크 내부 파이프라인 최적화.",
+    "teck_stack": ["Snowflake", "RDS"],
+    "output": "쿼리 성능 향상과 비용 절감"
+  },
+  {
+    "id": "ae4762a153",
+    "title": "셀러박스 3.0 수집 로직 개편",
+    "company": "서클플랫폼",
+    "period": "2025.06 ~ 2025.07",
+    "goal": "수집 로직 신뢰도 제고",
+    "description": "Flask에서 FastAPI로 이전하고 중앙 RPS 관리 서버를 도입, 주문 단위 수집 로직 구성.",
+    "teck_stack": ["FastAPI"],
+    "output": "주문, 문의, 리뷰, 정산 데이터 수집 실패율 제거, 주문 신뢰성 향상, 유지보수 및 배포 효율성 개선"
+  },
+  {
+    "id": "dd45ffe2e5",
+    "title": "SQL Agent [셀러박스]",
+    "company": "서클플랫폼",
+    "period": "2025.02 ~ 2025.03",
+    "goal": "셀러들이 여러 오픈마켓 데이터를 챗봇과 직접 대화로 조회할 수 있도록 SQL Agent 서비스 구축",
+    "description": "LangGraph 기반 SQL Agent 챗봇 구성, 실시간 데이터 파이프라인 및 FastAPI API 서버 구축.",
+    "teck_stack": ["LangGraph", "SQL", "FastAPI"],
+    "output": "서클플랫폼 최초 챗봇 서비스 출시, 주문확인·통계 확인 가능, 앱 체류 시간 증가"
+  },
+  {
+    "id": "5b56485a2c",
+    "title": "Chat My Excel",
+    "company": "서클플랫폼",
+    "period": "2025.04 ~ 2025.04",
+    "goal": "Excel 파일을 토큰 적게, 빠르게 읽고 대화/차트 생성을 지원하는 챗봇 구성",
+    "description": "Excel 파일을 내부 DB로 변환 후 SQL 질의 기반으로 분석 및 차트 생성 가능한 RAG 챗봇 구현.",
+    "teck_stack": ["LangGraph", "RAG", "SQL"],
+    "output": "대용량 Excel 빠른 집계 및 시계열 분석 지원, 마케터/영업 담당자들의 업무시간 단축, Self-RAG로 할루시네이션 최소화"
+  },
+  {
+    "id": "a01e0307b7",
+    "title": "공공기관 지방세 답변 챗봇",
+    "company": "서클플랫폼",
+    "period": "2025.07 ~ 2025.09",
+    "goal": "지방세 관련 질의응답 자동화를 위한 챗봇 구축",
+    "description": "FastAPI + LangChain 기반 폐쇄망 챗봇 서버 구성, 멀티 LLM 적용 및 인프라 모니터링 API와 RAGAS 검증 도입.",
+    "teck_stack": ["FastAPI", "LangChain", "Llama", "Gemma", "RAGAS"],
+    "output": "진행 중, 지방세 문의 자동 응대로 공무원 단순 반복 업무 대체 기대"
+  }
   ],
   "skills": {
     "languages": {
