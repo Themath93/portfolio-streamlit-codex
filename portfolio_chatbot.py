@@ -16,6 +16,8 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
+from utils.pdf_to_text_process import convert_pdf_to_text
+
 
 def load_portfolio_documents(assets_dir: Path, json_path: Path) -> List[Document]:
     """에셋 디렉터리와 JSON 파일을 로드해 임베딩 가능한 문서 목록을 생성한다.
@@ -78,10 +80,10 @@ def load_project_documents(pdf_path: Path) -> List[Document]:
     if not pdf_path.exists():
         raise FileNotFoundError(f"프로젝트 PDF를 찾을 수 없습니다: {pdf_path}")
 
+    pdf_text = convert_pdf_to_text(pdf_path)
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
-    loader = PyPDFLoader(str(pdf_path))
-    documents = loader.load()
-    return splitter.split_documents(documents)
+    documents = splitter.split_documents([Document(page_content=pdf_text, metadata={"source": pdf_path.name})])
+    return documents
 
 
 def build_vector_store(documents: Iterable[Document]) -> FAISS:
