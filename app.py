@@ -164,10 +164,6 @@ def render_sidebar_navigation() -> str:
     )
 
     st.sidebar.markdown("---")
-    st.sidebar.info(
-        "홈 화면에서 LangChain과 FAISS 기반 포트폴리오 챗봇을 사용할 수 있습니다. "
-        "환경 변수 `OPENAI_API_KEY`가 설정되어 있어야 답변이 생성됩니다."
-    )
     return page
 
 
@@ -253,6 +249,22 @@ def resolve_project_pdf_path(project_id: str) -> Optional[Path]:
 
     candidate_path = PROJECT_PDF_DIRECTORY / f"{project_id}.pdf"
     return candidate_path if candidate_path.exists() else None
+
+
+def list_highlight_images(image_dir: Path) -> List[Path]:
+    """홈 화면 하이라이트 섹션에 노출할 이미지 경로 목록을 반환한다.
+
+    Args:
+        image_dir (Path): 하이라이트 이미지를 저장한 디렉터리 경로.
+
+    Returns:
+        List[Path]: 존재하는 PNG 이미지 경로 리스트. 디렉터리가 없거나 이미지가 없으면 빈 리스트.
+    """
+
+    if not image_dir.exists():
+        return []
+
+    return sorted(path for path in image_dir.glob("*.png") if path.is_file())
 
 
 def _normalize_project_stack(project: Dict[str, Any]) -> List[str]:
@@ -395,6 +407,22 @@ def render_home_chatbot_section(
 
     st.markdown("---")
     st.markdown("## 🤖 LangChain + FAISS 포트폴리오 챗봇")
+    st.caption(
+        "추천 질문을 선택하거나 직접 질문을 입력해 포트폴리오 정보를 빠르게 확인해보세요."
+    )
+
+    quick_questions = [
+        "이 지원자에 대해 설명해줘",
+        "데이터 엔지니어로서 어떤 차별점을 가지고 있는지 설명해줘",
+        "어떻게 성장하고 있는지 시간순으로 요약해줘",
+    ]
+
+    quick_columns = st.columns(len(quick_questions))
+    for index, question in enumerate(quick_questions):
+        if quick_columns[index].button(question, key=f"quick_question_{index}"):
+            st.session_state["auto_generated_question"] = question
+            st.session_state["follow_up_options"] = []
+            st.experimental_rerun()
 
     if assistant_error:
         st.error(assistant_error)
@@ -593,28 +621,34 @@ def render_home_page(
 
     st.caption(f"📅 마지막 업데이트: {datetime.now().strftime('%Y년 %m월 %d일')}")
 
-    if projects:
-        st.markdown("### 🚀 대표 프로젝트")
-        for project in projects[:3]:
-            title_text = project.get("title", "이름 미정 프로젝트")
-            description_text = project.get("description") or "프로젝트 설명이 제공되지 않았습니다."
-            company = project.get("company")
-            period = project.get("period")
-            goal = project.get("goal")
-            output = project.get("output")
+    social_links = portfolio_data.get("social_links", {})
+    notion_url = social_links.get("notion")
+    if notion_url:
+        st.markdown("### 📘 노션 포트폴리오")
+        st.markdown(f"[노션에서 전체 포트폴리오 상세 보기]({notion_url})")
+        st.caption("프로젝트 맥락과 업무 메모를 노션에서 확인할 수 있습니다.")
 
-            st.markdown(f"**{title_text}**")
-            if company or period:
-                st.caption(" · ".join(filter(None, [company, period])))
-            st.write(description_text)
-            if goal:
-                st.markdown(f"- 목표: {goal}")
-            if output:
-                st.markdown(f"- 성과: {output}")
+    highlight_dir = ASSETS_DIRECTORY / "projects" / "images"
+    highlight_images = list_highlight_images(highlight_dir)
 
-            tech_stack = _normalize_project_stack(project)
-            if tech_stack:
-                st.caption("기술 스택: " + ", ".join(tech_stack))
+    if highlight_images:
+        st.markdown("### 🖼 최근 작업 하이라이트")
+        columns = st.columns(min(2, len(highlight_images)))
+        for index, image_path in enumerate(highlight_images):
+            column = columns[index % len(columns)]
+            caption = image_path.stem.replace("_", " ")
+            column.image(str(image_path), caption=caption, use_column_width=True)
+    else:
+        st.info(
+            "하이라이트 이미지가 등록되어 있지 않습니다. "
+            "`assets/projects/images` 폴더에 PNG 파일을 추가하면 홈 화면에서 자동으로 노출됩니다."
+        )
+
+    st.markdown("### 💼 프로젝트 자세히 보기")
+    st.write("모든 프로젝트 히스토리는 아래 버튼을 통해 확인할 수 있습니다.")
+    if st.button("프로젝트 페이지로 이동", key="navigate_projects"):
+        st.session_state["sidebar_page"] = "💼 프로젝트"
+        st.experimental_rerun()
 
     render_home_chatbot_section(assistant, assistant_error)
 
