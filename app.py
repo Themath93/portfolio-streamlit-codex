@@ -8,34 +8,25 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 from dotenv import load_dotenv
 
 from portfolio_chatbot import (
+    PortfolioChatAssistant,
     build_langchain_history,
     build_vector_store,
+    create_portfolio_assistant,
     create_portfolio_chain,
-    load_portfolio_documents,
+    load_project_documents,
 )
 
-PDF_PATH = Path("assets/portfolio.pdf")
+ASSETS_DIRECTORY = Path("assets")
 PROJECT_PDF_DIRECTORY = Path("assets/projects")
 PORTFOLIO_DATA_PATH = Path("portfolio_data.json")
 
 load_dotenv()
 
 PROJECT_PDF_DIRECTORY.mkdir(parents=True, exist_ok=True)
-
-
-SKILL_LEVEL_SCORES = {
-    "최상": 95,
-    "상": 90,
-    "중상": 80,
-    "중": 70,
-    "중하": 60,
-    "하": 50,
-}
 
 
 def configure_page() -> None:
@@ -64,6 +55,10 @@ def initialize_session_state() -> None:
         st.session_state["project_chat_histories"] = {}
     if "active_project_chat" not in st.session_state:
         st.session_state["active_project_chat"] = None
+    if "follow_up_options" not in st.session_state:
+        st.session_state["follow_up_options"] = []
+    if "auto_generated_question" not in st.session_state:
+        st.session_state["auto_generated_question"] = None
     if "sidebar_page" not in st.session_state:
         st.session_state["sidebar_page"] = "🏠 홈"
 
@@ -97,20 +92,37 @@ def load_portfolio_data_cached(json_path_str: str) -> Dict[str, Any]:
 
 
 @st.cache_resource(show_spinner=False)
-def initialize_chat_chain_cached(pdf_path_str: str):
-    """포트폴리오 챗봇 체인을 초기화하고 캐시한다.
+def initialize_portfolio_assistant_cached(
+    assets_dir_str: str, json_path_str: str
+) -> PortfolioChatAssistant:
+    """홈 화면에서 사용하는 포트폴리오 챗봇 어시스턴트를 초기화한다.
 
     Args:
-        pdf_path_str (str): 포트폴리오 PDF의 경로 문자열.
+        assets_dir_str (str): 에셋 디렉터리 경로 문자열.
+        json_path_str (str): 포트폴리오 JSON 파일 경로 문자열.
+
+    Returns:
+        PortfolioChatAssistant: LangChain 기반 포트폴리오 어시스턴트 인스턴스.
+    """
+
+    assets_dir = Path(assets_dir_str)
+    json_path = Path(json_path_str)
+    return create_portfolio_assistant(assets_dir, json_path)
+
+
+@st.cache_resource(show_spinner=False)
+def initialize_project_chat_chain_cached(pdf_path_str: str):
+    """프로젝트 전용 PDF 챗봇 체인을 초기화하고 캐시한다.
+
+    Args:
+        pdf_path_str (str): 프로젝트 PDF 경로 문자열.
 
     Returns:
         Any: LangChain 실행 체인 인스턴스.
     """
-    pdf_path = Path(pdf_path_str)
-    if not pdf_path.exists():
-        raise FileNotFoundError(f"포트폴리오 PDF를 찾을 수 없습니다: {pdf_path}")
 
-    documents = load_portfolio_documents(pdf_path)
+    pdf_path = Path(pdf_path_str)
+    documents = load_project_documents(pdf_path)
     vector_store = build_vector_store(documents)
     return create_portfolio_chain(vector_store)
 
@@ -142,14 +154,14 @@ def render_sidebar_navigation() -> str:
     st.sidebar.title("📂 Navigation")
     page = st.sidebar.selectbox(
         "페이지를 선택하세요",
-        ["🏠 홈", "👤 소개", "💼 프로젝트", "🛠️ 기술 스택", "📞 연락처", "🤖 챗봇"],
+        ["🏠 홈", "👤 소개", "💼 프로젝트", "📞 연락처"],
         key="sidebar_page",
     )
 
     st.sidebar.markdown("---")
     st.sidebar.info(
-        "챗봇 기능은 LangChain과 OpenAI API를 사용하여 포트폴리오 PDF를 분석합니다. "
-        "환경 변수 `OPENAI_API_KEY`가 설정되어 있어야 작동합니다."
+        "홈 화면에서 LangChain과 FAISS 기반 포트폴리오 챗봇을 사용할 수 있습니다. "
+        "환경 변수 `OPENAI_API_KEY`가 설정되어 있어야 답변이 생성됩니다."
     )
     return page
 
@@ -186,11 +198,38 @@ def prepare_chat_chain(pdf_path: Path) -> Tuple[Optional[Any], Optional[str]]:
         return None, f"포트폴리오 PDF 파일이 존재하지 않습니다: {pdf_path}"
 
     try:
-        chain = initialize_chat_chain_cached(str(pdf_path))
+        chain = initialize_project_chat_chain_cached(str(pdf_path))
     except Exception as error:  # pylint: disable=broad-except
         return None, f"챗봇 초기화 중 오류가 발생했습니다: {error}"
 
     return chain, None
+
+
+def prepare_chat_assistant(
+    assets_dir: Path, json_path: Path
+) -> Tuple[Optional[PortfolioChatAssistant], Optional[str]]:
+    """홈 화면 챗봇 어시스턴트를 준비한다.
+
+    Args:
+        assets_dir (Path): 포트폴리오 에셋 디렉터리 경로.
+        json_path (Path): 포트폴리오 JSON 데이터 경로.
+
+    Returns:
+        Tuple[Optional[PortfolioChatAssistant], Optional[str]]: 어시스턴트와 오류 메시지.
+    """
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None, "환경 변수 `OPENAI_API_KEY`를 설정한 뒤 다시 시도해주세요."
+
+    try:
+        assistant = initialize_portfolio_assistant_cached(
+            str(assets_dir), str(json_path)
+        )
+    except Exception as error:  # pylint: disable=broad-except
+        return None, f"홈 챗봇 초기화 중 오류가 발생했습니다: {error}"
+
+    return assistant, None
 
 
 def resolve_project_pdf_path(project_id: str) -> Optional[Path]:
@@ -228,32 +267,6 @@ def _normalize_project_stack(project: Dict[str, Any]) -> List[str]:
     return []
 
 
-def _build_skill_dataframe(skill_items: Dict[str, Any], label_column: str) -> pd.DataFrame:
-    """기술 사전을 시각화에 활용할 수 있는 데이터프레임으로 변환한다.
-
-    Args:
-        skill_items (Dict[str, Any]): 기술 이름을 키로, 숙련도 표기를 값으로 갖는 사전.
-        label_column (str): 기술 이름을 표시할 열 제목.
-
-    Returns:
-        pd.DataFrame: 기술, 숙련도 점수, 숙련도 표기를 포함하는 데이터프레임.
-    """
-
-    records: List[Dict[str, Any]] = []
-    for skill_name, raw_level in (skill_items or {}).items():
-        level_label = str(raw_level)
-        level_score = SKILL_LEVEL_SCORES.get(level_label, 60)
-        records.append(
-            {
-                label_column: skill_name,
-                "숙련도 점수": level_score,
-                "숙련도": level_label,
-            }
-        )
-
-    return pd.DataFrame(records)
-
-
 def _extract_experience_periods(experience_items: Iterable[Dict[str, Any]]) -> pd.DataFrame:
     """경력 정보 컬렉션을 표 형태로 변환한다.
 
@@ -271,15 +284,116 @@ def _extract_experience_periods(experience_items: Iterable[Dict[str, Any]]) -> p
     return pd.DataFrame(records)
 
 
+def render_home_chatbot_section(
+    assistant: Optional[PortfolioChatAssistant],
+    assistant_error: Optional[str],
+) -> None:
+    """홈 화면 하단의 LangChain 챗봇 섹션을 렌더링한다.
+
+    Args:
+        assistant (Optional[PortfolioChatAssistant]): 대화 생성을 담당할 어시스턴트.
+        assistant_error (Optional[str]): 초기화 오류 메시지.
+    """
+
+    st.markdown("---")
+    st.markdown("## 🤖 LangChain + FAISS 포트폴리오 챗봇")
+
+    if assistant_error:
+        st.error(assistant_error)
+        return
+
+    if assistant is None:
+        st.info(
+            "OpenAI API 키를 설정하면 포트폴리오 챗봇과 대화할 수 있습니다. "
+            "`.env` 파일 또는 환경 변수에 `OPENAI_API_KEY`를 등록한 뒤 페이지를 새로고침하세요."
+        )
+        return
+
+    for message in st.session_state["chat_history"]:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    suggestions = st.session_state.get("follow_up_options", [])
+    if suggestions:
+        with st.container():
+            st.markdown("#### 채용 담당자가 궁금해할 질문 제안")
+            st.caption("선택 후 버튼을 누르면 해당 질문으로 대화가 이어집니다.")
+            selected_question = st.selectbox(
+                "후속 질문 선택",
+                options=suggestions,
+                key="follow_up_select",
+            )
+            if st.button("선택한 질문으로 이어가기", key="follow_up_trigger"):
+                st.session_state["auto_generated_question"] = selected_question
+                st.session_state["follow_up_options"] = []
+                st.experimental_rerun()
+
+    auto_question = st.session_state.pop("auto_generated_question", None)
+    manual_prompt = st.chat_input("포트폴리오에 대해 궁금한 점을 입력하세요.")
+    user_prompt = auto_question or manual_prompt
+
+    if not user_prompt:
+        return
+
+    previous_history = list(st.session_state["chat_history"])
+    st.session_state["follow_up_options"] = []
+    st.session_state["chat_history"].append({"role": "user", "content": user_prompt})
+
+    with st.chat_message("user"):
+        st.markdown(user_prompt)
+
+    with st.chat_message("assistant"):
+        with st.spinner("답변을 준비하고 있습니다..."):
+            try:
+                result = assistant.generate_answer(user_prompt, previous_history)
+            except Exception:  # pylint: disable=broad-except
+                error_text = (
+                    "죄송합니다. 챗봇 응답을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+                )
+                st.error(error_text)
+                st.session_state["chat_history"].append(
+                    {"role": "assistant", "content": error_text}
+                )
+                return
+
+        answer = result.get("answer", "요청에 대한 답변을 생성하지 못했습니다.")
+        st.markdown(answer)
+
+        used_retriever = result.get("used_retriever", False)
+        caption_text = "🔍 벡터 검색 기반 답변" if used_retriever else "💡 요약 정보 기반 답변"
+        st.caption(caption_text)
+
+        st.session_state["chat_history"].append({"role": "assistant", "content": answer})
+
+        context_docs: Sequence[Any] = result.get("context", [])
+        if context_docs:
+            with st.expander("🔍 참고한 문맥 보기"):
+                for index, doc in enumerate(context_docs, start=1):
+                    metadata = getattr(doc, "metadata", {}) or {}
+                    source = metadata.get("source")
+                    title = f"**문서 {index}**"
+                    if source:
+                        title += f" · {source}"
+                    st.markdown(title)
+                    st.write(getattr(doc, "page_content", ""))
+
+        follow_up_options = (result.get("follow_ups") or [])[:3]
+        st.session_state["follow_up_options"] = follow_up_options
+
+
 def render_home_page(
     portfolio_data: Optional[Dict[str, Any]],
     error_message: Optional[str],
+    assistant: Optional[PortfolioChatAssistant],
+    assistant_error: Optional[str],
 ) -> None:
     """포트폴리오 데이터를 기반으로 홈 화면 콘텐츠를 렌더링한다.
 
     Args:
         portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
         error_message (Optional[str]): 데이터 로드 실패 시 사용자에게 안내할 오류 메시지.
+        assistant (Optional[PortfolioChatAssistant]): 홈 화면에서 사용할 챗봇 어시스턴트.
+        assistant_error (Optional[str]): 챗봇 초기화 오류 메시지.
     """
 
     st.title("👋 안녕하세요! 포트폴리오에 오신 것을 환영합니다")
@@ -384,6 +498,8 @@ def render_home_page(
             tech_stack = _normalize_project_stack(project)
             if tech_stack:
                 st.caption("기술 스택: " + ", ".join(tech_stack))
+
+    render_home_chatbot_section(assistant, assistant_error)
 
 
 def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
@@ -518,85 +634,6 @@ def render_projects_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
             render_project_chat_section(project_id, title_text)
 
 
-def render_skills_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
-    """기술 스택과 경력 정보를 시각화한다.
-
-    Args:
-        portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
-    """
-
-    st.title("🛠️ 기술 스택 & 경험")
-    render_home_navigation_button()
-
-    if not portfolio_data:
-        st.info("포트폴리오 데이터가 없어 기본 예시를 표시하지 않습니다. JSON 파일을 확인해주세요.")
-        return
-
-    skills_data = portfolio_data.get("skills", {}) if isinstance(portfolio_data, dict) else {}
-    languages_df = _build_skill_dataframe(skills_data.get("languages", {}), "언어")
-    frameworks_df = _build_skill_dataframe(skills_data.get("frameworks", {}), "프레임워크/라이브러리")
-    tools_df = _build_skill_dataframe(skills_data.get("tools", {}), "도구")
-    experience_df = _extract_experience_periods(portfolio_data.get("experience", []))
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("💻 프로그래밍 언어")
-        if not languages_df.empty:
-            fig1 = px.bar(
-                languages_df,
-                x="숙련도 점수",
-                y="언어",
-                orientation="h",
-                color="숙련도 점수",
-                hover_data=["숙련도"],
-                color_continuous_scale="viridis",
-            )
-            fig1.update_layout(height=300, showlegend=False)
-            st.plotly_chart(fig1, use_container_width=True)
-        else:
-            st.info("등록된 프로그래밍 언어 정보가 없습니다.")
-
-        st.subheader("🔧 도구 & 플랫폼")
-        if not tools_df.empty:
-            fig3 = px.bar(
-                tools_df,
-                x="숙련도 점수",
-                y="도구",
-                orientation="h",
-                color="숙련도 점수",
-                hover_data=["숙련도"],
-                color_continuous_scale="plasma",
-            )
-            fig3.update_layout(height=300, showlegend=False)
-            st.plotly_chart(fig3, use_container_width=True)
-        else:
-            st.info("등록된 도구 정보가 없습니다.")
-
-    with col2:
-        st.subheader("📚 프레임워크 & 라이브러리")
-        if not frameworks_df.empty:
-            fig2 = px.bar(
-                frameworks_df,
-                x="숙련도 점수",
-                y="프레임워크/라이브러리",
-                orientation="h",
-                color="숙련도 점수",
-                hover_data=["숙련도"],
-                color_continuous_scale="cividis",
-            )
-            fig2.update_layout(height=300, showlegend=False)
-            st.plotly_chart(fig2, use_container_width=True)
-        else:
-            st.info("등록된 프레임워크 정보가 없습니다.")
-
-        st.subheader("📅 경력 타임라인")
-        if not experience_df.empty:
-            st.table(experience_df)
-        else:
-            st.info("경력 정보가 없습니다. JSON 파일을 업데이트해주세요.")
-
-
 def render_contact_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
     """포트폴리오 데이터를 활용하여 연락처 정보를 출력하고 메시지 폼을 제공한다.
 
@@ -657,71 +694,6 @@ def render_contact_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
                 st.success("메시지가 성공적으로 전송되었습니다! 곧 답변드리겠습니다.")
             else:
                 st.error("모든 필드를 입력해주세요.")
-
-
-def render_chat_page(chat_chain: Optional[Any], error_message: Optional[str]) -> None:
-    """포트폴리오 챗봇 인터페이스를 렌더링한다.
-
-    Args:
-        chat_chain (Optional[Any]): LangChain 실행 체인 인스턴스.
-        error_message (Optional[str]): 초기화 과정에서 발생한 오류 메시지.
-    """
-    st.title("🤖 포트폴리오 챗봇")
-    render_home_navigation_button()
-    st.markdown(
-        "LangChain, OpenAI, FAISS를 활용하여 포트폴리오 PDF 기반 답변을 제공합니다.\n"
-        "프로젝트, 경력, 기술 스택에 대해 무엇이든 질문해보세요."
-    )
-
-    if error_message:
-        st.error(error_message)
-        return
-
-    if chat_chain is None:
-        st.info("챗봇을 초기화할 준비가 되었습니다. 질문을 입력하면 대화를 시작합니다.")
-        return
-
-    for message in st.session_state["chat_history"]:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    user_prompt = st.chat_input("포트폴리오에 대해 궁금한 점을 입력하세요.")
-    if not user_prompt:
-        return
-
-    history_messages = build_langchain_history(st.session_state["chat_history"])
-    st.session_state["chat_history"].append({"role": "user", "content": user_prompt})
-
-    with st.chat_message("user"):
-        st.markdown(user_prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("답변 생성 중..."):
-            try:
-                result: Dict[str, Any] = chat_chain.invoke(
-                    {
-                        "input": user_prompt,
-                        "chat_history": history_messages,
-                    }
-                )
-            except Exception as error:  # pylint: disable=broad-except
-                error_text = "죄송합니다. 답변 생성 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
-                st.error(error_text)
-                st.session_state["chat_history"].append(
-                    {"role": "assistant", "content": error_text}
-                )
-                return
-
-            answer = result.get("answer", "요청에 대한 답변을 생성하지 못했습니다.")
-            st.markdown(answer)
-            st.session_state["chat_history"].append({"role": "assistant", "content": answer})
-
-            context_docs: Sequence[Any] = result.get("context", [])
-            if context_docs:
-                with st.expander("🔍 참고한 문맥 보기"):
-                    for index, doc in enumerate(context_docs, start=1):
-                        st.markdown(f"**문서 {index}**")
-                        st.write(doc.page_content)
 
 
 def render_project_chat_section(project_id: str, project_title: str) -> None:
@@ -826,23 +798,21 @@ def main() -> None:
     if portfolio_error:
         st.sidebar.error("포트폴리오 데이터를 불러오지 못했습니다. 홈 화면에서 상세 내용을 확인해주세요.")
 
-    chat_chain: Optional[Any] = None
-    chat_error: Optional[str] = None
-    if page == "🤖 챗봇":
-        chat_chain, chat_error = prepare_chat_chain(PDF_PATH)
+    assistant: Optional[PortfolioChatAssistant] = None
+    assistant_error: Optional[str] = None
+    if page == "🏠 홈":
+        assistant, assistant_error = prepare_chat_assistant(
+            ASSETS_DIRECTORY, PORTFOLIO_DATA_PATH
+        )
 
     if page == "🏠 홈":
-        render_home_page(portfolio_data, portfolio_error)
+        render_home_page(portfolio_data, portfolio_error, assistant, assistant_error)
     elif page == "👤 소개":
         render_about_page(portfolio_data)
     elif page == "💼 프로젝트":
         render_projects_page(portfolio_data)
-    elif page == "🛠️ 기술 스택":
-        render_skills_page(portfolio_data)
     elif page == "📞 연락처":
         render_contact_page(portfolio_data)
-    elif page == "🤖 챗봇":
-        render_chat_page(chat_chain, chat_error)
 
     render_footer()
 
