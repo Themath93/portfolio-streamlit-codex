@@ -60,14 +60,12 @@ def initialize_session_state() -> None:
     """
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
-    if "openai_api_key" not in st.session_state:
-        st.session_state["openai_api_key"] = os.getenv("OPENAI_API_KEY", "")
-    if "openai_api_key_input" not in st.session_state:
-        st.session_state["openai_api_key_input"] = st.session_state["openai_api_key"]
     if "project_chat_histories" not in st.session_state:
         st.session_state["project_chat_histories"] = {}
     if "active_project_chat" not in st.session_state:
         st.session_state["active_project_chat"] = None
+    if "sidebar_page" not in st.session_state:
+        st.session_state["sidebar_page"] = "🏠 홈"
 
 
 @st.cache_data(show_spinner=False)
@@ -135,56 +133,54 @@ def prepare_portfolio_data(json_path: Path) -> Tuple[Optional[Dict[str, Any]], O
         return None, str(error)
 
 
-def render_sidebar_navigation() -> Tuple[str, Optional[str]]:
-    """사이드바 네비게이션과 API 키 입력 폼을 출력한다.
+def render_sidebar_navigation() -> str:
+    """사이드바 네비게이션을 출력한다.
 
     Returns:
-        Tuple[str, Optional[str]]: 선택된 페이지와 설정된 OpenAI API 키.
+        str: 선택된 페이지 식별자.
     """
     st.sidebar.title("📂 Navigation")
     page = st.sidebar.selectbox(
         "페이지를 선택하세요",
         ["🏠 홈", "👤 소개", "💼 프로젝트", "🛠️ 기술 스택", "📞 연락처", "🤖 챗봇"],
+        key="sidebar_page",
     )
 
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🔐 OpenAI 설정")
-    api_key_input = st.sidebar.text_input(
-        "OpenAI API Key",
-        value=st.session_state.get("openai_api_key_input", ""),
-        type="password",
-        help="환경 변수로 설정하지 않았다면 여기에 API 키를 입력하세요.",
-    )
-
-    if api_key_input:
-        st.session_state["openai_api_key"] = api_key_input
-        st.session_state["openai_api_key_input"] = api_key_input
-        os.environ["OPENAI_API_KEY"] = api_key_input
-    elif st.session_state.get("openai_api_key"):
-        os.environ["OPENAI_API_KEY"] = st.session_state["openai_api_key"]
-
-    api_key = st.session_state.get("openai_api_key") or os.getenv("OPENAI_API_KEY")
-
     st.sidebar.info(
         "챗봇 기능은 LangChain과 OpenAI API를 사용하여 포트폴리오 PDF를 분석합니다. "
-        "API 키를 입력하면 대화형 질의응답을 시작할 수 있습니다."
+        "환경 변수 `OPENAI_API_KEY`가 설정되어 있어야 작동합니다."
     )
-    return page, api_key
+    return page
 
 
-def prepare_chat_chain(api_key: Optional[str], pdf_path: Path) -> Tuple[Optional[Any], Optional[str]]:
+def render_home_navigation_button() -> None:
+    """페이지 상단에 홈으로 이동하는 버튼을 출력한다.
+
+    Returns:
+        None: 반환값이 없다.
+    """
+    button_key = f"home_nav_button_{st.session_state.get('sidebar_page', 'home')}"
+    if st.button("🏠 홈으로 돌아가기", key=button_key):
+        st.session_state["sidebar_page"] = "🏠 홈"
+        st.experimental_rerun()
+
+
+def prepare_chat_chain(pdf_path: Path) -> Tuple[Optional[Any], Optional[str]]:
     """챗봇 체인을 준비하고 오류 메시지를 반환한다.
 
+    환경 변수 `OPENAI_API_KEY`가 설정되어 있어야 OpenAI 기반 체인을 초기화할 수 있다.
+
     Args:
-        api_key (Optional[str]): 설정된 OpenAI API 키.
         pdf_path (Path): 포트폴리오 PDF 파일 경로.
 
     Returns:
         Tuple[Optional[Any], Optional[str]]: 준비된 체인과 오류 메시지.
     """
 
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        return None, "OpenAI API Key를 입력하거나 환경 변수로 설정해주세요."
+        return None, "환경 변수 `OPENAI_API_KEY`를 설정한 뒤 다시 시도해주세요."
 
     if not pdf_path.exists():
         return None, f"포트폴리오 PDF 파일이 존재하지 않습니다: {pdf_path}"
@@ -287,6 +283,7 @@ def render_home_page(
     """
 
     st.title("👋 안녕하세요! 포트폴리오에 오신 것을 환영합니다")
+    render_home_navigation_button()
 
     if error_message:
         st.error(error_message)
@@ -397,6 +394,7 @@ def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
     """
 
     st.title("👤 소개")
+    render_home_navigation_button()
 
     if not portfolio_data:
         st.info("포트폴리오 데이터가 존재하지 않아 기본 소개 정보를 표시합니다.")
@@ -451,17 +449,15 @@ def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
         st.table(experience_df)
 
 
-def render_projects_page(
-    portfolio_data: Optional[Dict[str, Any]], api_key: Optional[str]
-) -> None:
+def render_projects_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
     """프로젝트 데이터를 기반으로 상세 정보를 렌더링한다.
 
     Args:
         portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
-        api_key (Optional[str]): OpenAI API 키. 프로젝트별 챗봇 초기화에 사용된다.
     """
 
     st.title("💼 프로젝트 포트폴리오")
+    render_home_navigation_button()
 
     projects: List[Dict[str, Any]] = []
     if portfolio_data:
@@ -519,7 +515,7 @@ def render_projects_page(
                         st.session_state["active_project_chat"] = project_id
 
         if st.session_state.get("active_project_chat") == project_id:
-            render_project_chat_section(project_id, title_text, api_key)
+            render_project_chat_section(project_id, title_text)
 
 
 def render_skills_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
@@ -530,6 +526,7 @@ def render_skills_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
     """
 
     st.title("🛠️ 기술 스택 & 경험")
+    render_home_navigation_button()
 
     if not portfolio_data:
         st.info("포트폴리오 데이터가 없어 기본 예시를 표시하지 않습니다. JSON 파일을 확인해주세요.")
@@ -608,6 +605,7 @@ def render_contact_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
     """
 
     st.title("📞 연락처 & 소셜 미디어")
+    render_home_navigation_button()
 
     personal_info = (portfolio_data or {}).get("personal_info", {})
     social_links = (portfolio_data or {}).get("social_links", {})
@@ -669,6 +667,7 @@ def render_chat_page(chat_chain: Optional[Any], error_message: Optional[str]) ->
         error_message (Optional[str]): 초기화 과정에서 발생한 오류 메시지.
     """
     st.title("🤖 포트폴리오 챗봇")
+    render_home_navigation_button()
     st.markdown(
         "LangChain, OpenAI, FAISS를 활용하여 포트폴리오 PDF 기반 답변을 제공합니다.\n"
         "프로젝트, 경력, 기술 스택에 대해 무엇이든 질문해보세요."
@@ -725,15 +724,12 @@ def render_chat_page(chat_chain: Optional[Any], error_message: Optional[str]) ->
                         st.write(doc.page_content)
 
 
-def render_project_chat_section(
-    project_id: str, project_title: str, api_key: Optional[str]
-) -> None:
+def render_project_chat_section(project_id: str, project_title: str) -> None:
     """프로젝트 전용 챗봇 인터페이스를 렌더링한다.
 
     Args:
         project_id (str): ``portfolio_data.json``의 프로젝트 식별자.
         project_title (str): 사용자에게 표시할 프로젝트 제목.
-        api_key (Optional[str]): OpenAI API 키.
     """
 
     st.markdown("---")
@@ -746,7 +742,7 @@ def render_project_chat_section(
         )
         return
 
-    chat_chain, error_message = prepare_chat_chain(api_key, pdf_path)
+    chat_chain, error_message = prepare_chat_chain(pdf_path)
     if error_message:
         st.error(error_message)
         return
@@ -824,7 +820,7 @@ def main() -> None:
     """
     configure_page()
     initialize_session_state()
-    page, api_key = render_sidebar_navigation()
+    page = render_sidebar_navigation()
 
     portfolio_data, portfolio_error = prepare_portfolio_data(PORTFOLIO_DATA_PATH)
     if portfolio_error:
@@ -833,14 +829,14 @@ def main() -> None:
     chat_chain: Optional[Any] = None
     chat_error: Optional[str] = None
     if page == "🤖 챗봇":
-        chat_chain, chat_error = prepare_chat_chain(api_key, PDF_PATH)
+        chat_chain, chat_error = prepare_chat_chain(PDF_PATH)
 
     if page == "🏠 홈":
         render_home_page(portfolio_data, portfolio_error)
     elif page == "👤 소개":
         render_about_page(portfolio_data)
     elif page == "💼 프로젝트":
-        render_projects_page(portfolio_data, api_key)
+        render_projects_page(portfolio_data)
     elif page == "🛠️ 기술 스택":
         render_skills_page(portfolio_data)
     elif page == "📞 연락처":
