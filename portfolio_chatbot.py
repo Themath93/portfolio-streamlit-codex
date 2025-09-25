@@ -1,6 +1,8 @@
 """포트폴리오 챗봇 생성을 담당하는 도우미 모듈."""
 from __future__ import annotations
 
+import os
+import streamlit as st
 import json
 from dataclasses import dataclass
 from io import BytesIO
@@ -18,6 +20,12 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from utils.pdf_to_text_process import convert_pdf_to_text
+
+
+if os.getenv("OPENAI_API_KEY") is None:
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+else:
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def load_portfolio_documents(assets_dir: Path, json_path: Path) -> List[Document]:
@@ -101,7 +109,7 @@ def build_vector_store(documents: Iterable[Document]) -> FAISS:
         FAISS: 포트폴리오 정보를 담고 있는 벡터 저장소 인스턴스.
     """
 
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=OPENAI_API_KEY)
     return FAISS.from_documents(list(documents), embedding=embeddings)
 
 
@@ -115,7 +123,7 @@ def create_multi_query_retriever(vector_store: FAISS) -> MultiQueryRetriever:
         MultiQueryRetriever: 복수 질의 기반의 리트리버 인스턴스.
     """
 
-    query_llm = ChatOpenAI(model="gpt-5-mini", temperature=0.2)
+    query_llm = ChatOpenAI(model="gpt-5-mini", temperature=0.2, api_key=OPENAI_API_KEY)
     base_retriever = vector_store.as_retriever(search_kwargs={"k": 5})
     return MultiQueryRetriever.from_llm(retriever=base_retriever, llm=query_llm)
 
