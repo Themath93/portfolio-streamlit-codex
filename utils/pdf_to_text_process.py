@@ -6,6 +6,7 @@ import pdfplumber
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 import logging
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -57,7 +58,7 @@ def overlaps_any(bbox, regions, iou_thresh=0.05):
     return any(rect_iou(bbox, r) >= iou_thresh for r in regions)
 
 
-def extract_tables_with_fitz_and_camelot(pdf_stream: bytes, page_index: int):
+def extract_tables_with_fitz_and_camelot(pdf_stream: BytesIO, page_index: int):
     """
     page_index: 0-based
     반환:
@@ -314,7 +315,7 @@ def remove_table_line_duplicates(text: str, table_items: list) -> str:
     return out
 
 
-def get_text_and_tables(pdf_stream: bytes, file_name: str):
+def get_text_and_tables(pdf_stream: BytesIO, file_name: str):
     """
     TEXT는 pdfplumber를 사용(표 bbox 마스킹),
     Table은 fitz(+Camelot 백업)를 사용하여 추출
@@ -407,7 +408,7 @@ def text_to_documents(
     return docs
 
 
-def convert_pdf_to_text(pdf_stream: bytes, file_name: str) -> list[Document]:
+def convert_pdf_to_text(pdf_stream: BytesIO, file_name: str) -> list[Document]:
     """
     pdf -> txt
     """
