@@ -20,9 +20,12 @@ from portfolio_chatbot import (
 )
 
 PDF_PATH = Path("assets/portfolio.pdf")
+PROJECT_PDF_DIRECTORY = Path("assets/projects")
 PORTFOLIO_DATA_PATH = Path("portfolio_data.json")
 
 load_dotenv()
+
+PROJECT_PDF_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
 
 SKILL_LEVEL_SCORES = {
@@ -61,6 +64,10 @@ def initialize_session_state() -> None:
         st.session_state["openai_api_key"] = os.getenv("OPENAI_API_KEY", "")
     if "openai_api_key_input" not in st.session_state:
         st.session_state["openai_api_key_input"] = st.session_state["openai_api_key"]
+    if "project_chat_histories" not in st.session_state:
+        st.session_state["project_chat_histories"] = {}
+    if "active_project_chat" not in st.session_state:
+        st.session_state["active_project_chat"] = None
 
 
 @st.cache_data(show_spinner=False)
@@ -175,6 +182,7 @@ def prepare_chat_chain(api_key: Optional[str], pdf_path: Path) -> Tuple[Optional
     Returns:
         Tuple[Optional[Any], Optional[str]]: 준비된 체인과 오류 메시지.
     """
+
     if not api_key:
         return None, "OpenAI API Key를 입력하거나 환경 변수로 설정해주세요."
 
@@ -187,6 +195,23 @@ def prepare_chat_chain(api_key: Optional[str], pdf_path: Path) -> Tuple[Optional
         return None, f"챗봇 초기화 중 오류가 발생했습니다: {error}"
 
     return chain, None
+
+
+def resolve_project_pdf_path(project_id: str) -> Optional[Path]:
+    """프로젝트 식별자에 대응하는 PDF 경로를 반환한다.
+
+    Args:
+        project_id (str): ``portfolio_data.json``에 정의된 프로젝트 식별자.
+
+    Returns:
+        Optional[Path]: 매칭되는 PDF 경로. 파일이 존재하지 않으면 ``None``.
+    """
+
+    if not project_id:
+        return None
+
+    candidate_path = PROJECT_PDF_DIRECTORY / f"{project_id}.pdf"
+    return candidate_path if candidate_path.exists() else None
 
 
 def _normalize_project_stack(project: Dict[str, Any]) -> List[str]:
@@ -426,11 +451,14 @@ def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
         st.table(experience_df)
 
 
-def render_projects_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
+def render_projects_page(
+    portfolio_data: Optional[Dict[str, Any]], api_key: Optional[str]
+) -> None:
     """프로젝트 데이터를 기반으로 상세 정보를 렌더링한다.
 
     Args:
         portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
+        api_key (Optional[str]): OpenAI API 키. 프로젝트별 챗봇 초기화에 사용된다.
     """
 
     st.title("💼 프로젝트 포트폴리오")
@@ -455,7 +483,8 @@ def render_projects_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
         else projects
     )
 
-    for project in filtered_projects:
+    for index, project in enumerate(filtered_projects):
+        project_id = project.get("id", "")
         title_text = project.get("title", "이름 미정 프로젝트")
         with st.expander(f"📁 {title_text}", expanded=True):
             col1, col2 = st.columns([3, 2])
@@ -478,6 +507,19 @@ def render_projects_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
                 if tech_stack:
                     st.markdown("**기술 스택**")
                     st.markdown(", ".join(tech_stack))
+
+                pdf_path = resolve_project_pdf_path(project_id)
+                if pdf_path is None:
+                    st.info(
+                        "프로젝트 세부 문서 PDF가 존재하지 않습니다. 'assets/projects' 경로에 파일을 추가해주세요."
+                    )
+                else:
+                    button_key = f"start_chat_{project_id or index}"
+                    if st.button("🤖 프로젝트 챗봇 열기", key=button_key):
+                        st.session_state["active_project_chat"] = project_id
+
+        if st.session_state.get("active_project_chat") == project_id:
+            render_project_chat_section(project_id, title_text, api_key)
 
 
 def render_skills_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
@@ -683,6 +725,80 @@ def render_chat_page(chat_chain: Optional[Any], error_message: Optional[str]) ->
                         st.write(doc.page_content)
 
 
+def render_project_chat_section(
+    project_id: str, project_title: str, api_key: Optional[str]
+) -> None:
+    """프로젝트 전용 챗봇 인터페이스를 렌더링한다.
+
+    Args:
+        project_id (str): ``portfolio_data.json``의 프로젝트 식별자.
+        project_title (str): 사용자에게 표시할 프로젝트 제목.
+        api_key (Optional[str]): OpenAI API 키.
+    """
+
+    st.markdown("---")
+    st.subheader(f"🤖 {project_title} 대화형 문서 요약")
+
+    pdf_path = resolve_project_pdf_path(project_id)
+    if pdf_path is None:
+        st.warning(
+            "프로젝트에 연결된 PDF가 존재하지 않습니다. 'assets/projects' 경로에 파일을 배치해주세요."
+        )
+        return
+
+    chat_chain, error_message = prepare_chat_chain(api_key, pdf_path)
+    if error_message:
+        st.error(error_message)
+        return
+
+    histories: Dict[str, List[Dict[str, str]]] = st.session_state.setdefault(
+        "project_chat_histories", {}
+    )
+    history = histories.setdefault(project_id, [])
+
+    for message in history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    user_prompt = st.chat_input(
+        f"{project_title} 프로젝트 문서에 대해 질문을 입력하세요.",
+        key=f"project_chat_input_{project_id}",
+    )
+    if not user_prompt:
+        return
+
+    history_messages = build_langchain_history(history)
+    history.append({"role": "user", "content": user_prompt})
+
+    with st.chat_message("user"):
+        st.markdown(user_prompt)
+
+    with st.chat_message("assistant"):
+        with st.spinner("문서를 검토하여 답변을 작성 중입니다..."):
+            try:
+                result: Dict[str, Any] = chat_chain.invoke(
+                    {"input": user_prompt, "chat_history": history_messages}
+                )
+            except Exception:  # pylint: disable=broad-except
+                error_text = (
+                    "죄송합니다. 프로젝트 문서를 분석하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
+                )
+                st.error(error_text)
+                history.append({"role": "assistant", "content": error_text})
+                return
+
+            answer = result.get("answer", "요청한 정보에 대한 답변을 찾을 수 없습니다.")
+            st.markdown(answer)
+            history.append({"role": "assistant", "content": answer})
+
+            context_docs: Sequence[Any] = result.get("context", [])
+            if context_docs:
+                with st.expander("🔍 참고한 문맥 보기"):
+                    for index, doc in enumerate(context_docs, start=1):
+                        st.markdown(f"**문서 {index}**")
+                        st.write(doc.page_content)
+
+
 def render_footer() -> None:
     """페이지 하단의 푸터를 출력한다.
 
@@ -724,7 +840,7 @@ def main() -> None:
     elif page == "👤 소개":
         render_about_page(portfolio_data)
     elif page == "💼 프로젝트":
-        render_projects_page(portfolio_data)
+        render_projects_page(portfolio_data, api_key)
     elif page == "🛠️ 기술 스택":
         render_skills_page(portfolio_data)
     elif page == "📞 연락처":
