@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Match, Optional, Sequence, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -61,6 +62,8 @@ def initialize_session_state() -> None:
         st.session_state["auto_generated_question"] = None
     if "sidebar_page" not in st.session_state:
         st.session_state["sidebar_page"] = "🏠 홈"
+    if "navigate_to_home" not in st.session_state:
+        st.session_state["navigate_to_home"] = False
 
 
 @st.cache_data(show_spinner=False)
@@ -173,8 +176,9 @@ def render_home_navigation_button() -> None:
         None: 반환값이 없다.
     """
     button_key = f"home_nav_button_{st.session_state.get('sidebar_page', 'home')}"
+
     if st.button("🏠 홈으로 돌아가기", key=button_key):
-        st.session_state["sidebar_page"] = "🏠 홈"
+        st.session_state["navigate_to_home"] = True
         st.experimental_rerun()
 
 
@@ -282,6 +286,98 @@ def _extract_experience_periods(experience_items: Iterable[Dict[str, Any]]) -> p
         for item in experience_items
     ]
     return pd.DataFrame(records)
+
+
+def _parse_project_period_start(period: str) -> datetime:
+    """프로젝트 기간 문자열에서 시작 월을 파싱한다.
+
+    Args:
+        period (str): ``YYYY.MM ~ YYYY.MM`` 형식의 기간 문자열.
+
+    Returns:
+        datetime: 추출한 시작 연월을 나타내는 ``datetime`` 객체. 파싱 실패 시 ``datetime.max``를 반환한다.
+    """
+
+    if not period:
+        return datetime.max
+
+    match = re.search(r"(\d{4})[./-]\s*(\d{1,2})", period)
+    if not match:
+        return datetime.max
+
+    year_str, month_str = match.groups()
+    try:
+        return datetime(int(year_str), int(month_str), 1)
+    except ValueError:
+        return datetime.max
+
+
+def _project_sort_key(project: Dict[str, Any]) -> Tuple[datetime, str]:
+    """프로젝트 정렬을 위한 키 튜플을 생성한다.
+
+    Args:
+        project (Dict[str, Any]): 프로젝트 정보를 담은 사전.
+
+    Returns:
+        Tuple[datetime, str]: 시작 연월과 프로젝트 제목을 담은 정렬 키.
+    """
+
+    period_value = project.get("period", "")
+    start_period = _parse_project_period_start(str(period_value))
+    title_value = project.get("title", "") or ""
+    return start_period, title_value
+
+
+def _emphasize_key_phrases(text: str) -> str:
+    """핵심 수치와 키워드를 강조하여 시각적으로 돋보이게 만든다.
+
+    Args:
+        text (str): 강조 처리를 적용할 원본 문자열.
+
+    Returns:
+        str: 강조 처리가 적용된 문자열. 입력이 비어 있으면 빈 문자열을 반환한다.
+    """
+
+    if not text:
+        return ""
+
+    updated_text = str(text)
+
+    numeric_patterns = [
+        re.compile(r"\d{4}\.\d{2}"),
+        re.compile(r"\d+(?:[.,]\d+)?%"),
+        re.compile(r"\d+(?:[.,]\d+)?\s*(?:만|억|배|분|초|건|원|회)"),
+        re.compile(r"\d+(?:[.,]\d+)?\s*(?:시간|개월|일)")
+    ]
+
+    def replace_with_bold(match: Match[str]) -> str:
+        matched_text = match.group(0)
+        if matched_text.startswith("**") and matched_text.endswith("**"):
+            return matched_text
+        return f"**{matched_text}**"
+
+    for pattern in numeric_patterns:
+        updated_text = pattern.sub(replace_with_bold, updated_text)
+
+    highlight_keywords = [
+        "실시간",
+        "준실시간",
+        "절감",
+        "단축",
+        "증가",
+        "향상",
+        "개선",
+        "출시",
+        "안정적",
+        "확장성",
+        "성공"
+    ]
+
+    for keyword in highlight_keywords:
+        pattern = re.compile(rf"(?<!\*){re.escape(keyword)}(?!\*)")
+        updated_text = pattern.sub(f"**{keyword}**", updated_text)
+
+    return updated_text
 
 
 def render_home_chatbot_section(
@@ -396,7 +492,7 @@ def render_home_page(
         assistant_error (Optional[str]): 챗봇 초기화 오류 메시지.
     """
 
-    st.title("👋 안녕하세요! 포트폴리오에 오신 것을 환영합니다")
+    st.title("안녕하세요! **데이터 엔지니어 윤병우**를 소개합니다!")
     render_home_navigation_button()
 
     if error_message:
@@ -595,24 +691,31 @@ def render_projects_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
         else projects
     )
 
-    for index, project in enumerate(filtered_projects):
+    sorted_projects = sorted(filtered_projects, key=_project_sort_key)
+
+    for index, project in enumerate(sorted_projects):
         project_id = project.get("id", "")
         title_text = project.get("title", "이름 미정 프로젝트")
         with st.expander(f"📁 {title_text}", expanded=True):
             col1, col2 = st.columns([3, 2])
 
             with col1:
-                st.markdown(f"**회사**: {project.get('company', '기관 미상')}")
-                st.markdown(f"**기간**: {project.get('period', '기간 미상')}")
+                company_text = project.get("company", "기관 미상")
+                period_text = _emphasize_key_phrases(project.get("period", "기간 미상"))
+                st.markdown(f"- 회사: **{company_text}**")
+                st.markdown(f"- 기간: {period_text}")
                 goal = project.get("goal")
                 if goal:
-                    st.markdown(f"**목표**: {goal}")
+                    goal_text = _emphasize_key_phrases(goal)
+                    st.markdown(f"- 목표: {goal_text}")
                 description = project.get("description")
                 if description:
-                    st.markdown(f"**설명**: {description}")
+                    description_text = _emphasize_key_phrases(description)
+                    st.markdown(f"- 설명: {description_text}")
                 output = project.get("output")
                 if output:
-                    st.markdown(f"**성과**: {output}")
+                    output_text = _emphasize_key_phrases(output)
+                    st.markdown(f"- 성과: {output_text}")
 
             with col2:
                 tech_stack = _normalize_project_stack(project)
@@ -792,6 +895,8 @@ def main() -> None:
     """
     configure_page()
     initialize_session_state()
+    if st.session_state.pop("navigate_to_home", False):
+        st.session_state["sidebar_page"] = "🏠 홈"
     page = render_sidebar_navigation()
 
     portfolio_data, portfolio_error = prepare_portfolio_data(PORTFOLIO_DATA_PATH)
