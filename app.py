@@ -165,8 +165,8 @@ def render_sidebar_navigation() -> str:
 
     st.sidebar.markdown("---")
     st.sidebar.info(
-        "홈 화면에서 LangChain과 FAISS 기반 포트폴리오 챗봇을 사용할 수 있습니다. "
-        "환경 변수 `OPENAI_API_KEY`가 설정되어 있어야 답변이 생성됩니다."
+        "이 포트폴리오는 [GitHub 저장소](https://github.com/Themath93/portfolio-streamlit-codex)에서 확인할 수 있습니다."
+        "Codex 를 사용하여 개발 하였습니다."
     )
     return page
 
@@ -179,9 +179,10 @@ def render_home_navigation_button() -> None:
     """
     button_key = f"home_nav_button_{st.session_state.get('sidebar_page', 'home')}"
 
-    if st.button("🏠 홈으로 돌아가기", key=button_key):
-        st.session_state["navigate_to_home"] = True
-        st.experimental_rerun()
+    if st.session_state.get("sidebar_page") != "🏠 홈":
+        if st.button("🏠 홈으로 돌아가기", key=button_key):
+            st.session_state["navigate_to_home"] = True
+            st.experimental_rerun()
 
 
 def prepare_chat_chain(pdf_path: Path) -> Tuple[Optional[Any], Optional[str]]:
@@ -513,7 +514,11 @@ def render_home_page(
         assistant_error (Optional[str]): 챗봇 초기화 오류 메시지.
     """
 
-    st.title("안녕하세요! **데이터 엔지니어 윤병우**를 소개합니다!")
+    col_title, col_image = st.columns([3, 1], gap="small")
+    with col_title:
+        st.title("안녕하세요! **데이터 엔지니어 윤병우**를 소개합니다!")
+    with col_image:
+        st.image("images/윤병우_main_image.jpg", width=200)
     render_home_navigation_button()
 
     if error_message:

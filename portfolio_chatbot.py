@@ -20,7 +20,9 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from utils.pdf_to_text_process import convert_pdf_to_text
+from dotenv import load_dotenv
 
+load_dotenv()
 
 if os.getenv("OPENAI_API_KEY") is None:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
