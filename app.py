@@ -125,7 +125,7 @@ def initialize_project_chat_chain_cached(pdf_path_str: str):
     """
 
     pdf_path = Path(pdf_path_str)
-    documents = load_project_documents(pdf_path)
+    documents = load_project_documents(pdf_path, file_name=pdf_path.name)
     vector_store = build_vector_store(documents)
     return create_portfolio_chain(vector_store)
 

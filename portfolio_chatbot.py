@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
@@ -64,12 +65,12 @@ def load_portfolio_documents(assets_dir: Path, json_path: Path) -> List[Document
     return documents
 
 
-def load_project_documents(pdf_path: Path) -> List[Document]:
+def load_project_documents(pdf_path: Path, file_name: str) -> List[Document]:
     """단일 프로젝트 PDF를 청크 단위 문서로 변환한다.
 
     Args:
         pdf_path (Path): 임베딩 대상이 되는 프로젝트 PDF 경로.
-
+        file_name (str): 프로젝트 파일 이름.
     Returns:
         List[Document]: 분할된 문서 리스트.
 
@@ -80,9 +81,13 @@ def load_project_documents(pdf_path: Path) -> List[Document]:
     if not pdf_path.exists():
         raise FileNotFoundError(f"프로젝트 PDF를 찾을 수 없습니다: {pdf_path}")
 
-    pdf_text = convert_pdf_to_text(pdf_path)
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
-    documents = splitter.split_documents([Document(page_content=pdf_text, metadata={"source": pdf_path.name})])
+    # PDF 파일을 bytes로 읽어서 BytesIO로 감싸서 convert_pdf_to_text 함수에 전달
+    with open(pdf_path, 'rb') as f:
+        pdf_bytes = f.read()
+    
+    
+    pdf_stream = BytesIO(pdf_bytes)
+    documents = convert_pdf_to_text(pdf_stream, file_name=file_name)
     return documents
 
 
