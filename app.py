@@ -64,6 +64,8 @@ def initialize_session_state() -> None:
         st.session_state["sidebar_page"] = "🏠 홈"
     if "navigate_to_home" not in st.session_state:
         st.session_state["navigate_to_home"] = False
+    if "latest_exchange" not in st.session_state:
+        st.session_state["latest_exchange"] = None
 
 
 @st.cache_data(show_spinner=False)
@@ -405,14 +407,25 @@ def render_home_chatbot_section(
         )
         return
 
-    for message in st.session_state["chat_history"]:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    latest_exchange = st.session_state.get("latest_exchange")
+    if latest_exchange:
+        st.markdown("#### 최근 질의응답 스냅샷")
+        with st.container():
+            with st.chat_message("user"):
+                st.markdown(latest_exchange.get("question", ""))
+            with st.chat_message("assistant"):
+                st.markdown(latest_exchange.get("answer", ""))
+                caption_text = (
+                    "🔍 벡터 검색 기반 답변"
+                    if latest_exchange.get("used_retriever")
+                    else "💡 요약 정보 기반 답변"
+                )
+                st.caption(caption_text)
 
     suggestions = st.session_state.get("follow_up_options", [])
     if suggestions:
         with st.container():
-            st.markdown("#### 채용 담당자가 궁금해할 질문 제안")
+            st.markdown("#### 서류 검토 담당자가 궁금해할 질문 추천")
             st.caption("선택 후 버튼을 누르면 해당 질문으로 대화가 이어집니다.")
             selected_question = st.selectbox(
                 "후속 질문 선택",
@@ -439,27 +452,35 @@ def render_home_chatbot_section(
         st.markdown(user_prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("답변을 준비하고 있습니다..."):
-            try:
-                result = assistant.generate_answer(user_prompt, previous_history)
-            except Exception:  # pylint: disable=broad-except
-                error_text = (
-                    "죄송합니다. 챗봇 응답을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        try:
+            with st.spinner("답변을 준비하고 있습니다..."):
+                stream_iterator, metadata = assistant.generate_answer_stream(
+                    user_prompt, previous_history
                 )
-                st.error(error_text)
-                st.session_state["chat_history"].append(
-                    {"role": "assistant", "content": error_text}
-                )
-                return
+        except Exception:  # pylint: disable=broad-except
+            error_text = (
+                "죄송합니다. 챗봇 응답을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            )
+            st.error(error_text)
+            st.session_state["chat_history"].append(
+                {"role": "assistant", "content": error_text}
+            )
+            return
 
-        answer = result.get("answer", "요청에 대한 답변을 생성하지 못했습니다.")
-        st.markdown(answer)
+        answer = st.write_stream(stream_iterator)
+        result = metadata.finalize(answer)
 
         used_retriever = result.get("used_retriever", False)
         caption_text = "🔍 벡터 검색 기반 답변" if used_retriever else "💡 요약 정보 기반 답변"
         st.caption(caption_text)
 
         st.session_state["chat_history"].append({"role": "assistant", "content": answer})
+        st.session_state["latest_exchange"] = {
+            "question": user_prompt,
+            "answer": answer,
+            "used_retriever": used_retriever,
+        }
+        st.session_state["chat_history"] = st.session_state["chat_history"][-12:]
 
         context_docs: Sequence[Any] = result.get("context", [])
         if context_docs:

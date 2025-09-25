@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any, Dict, Iterable, Iterator, List, Sequence
 
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -189,6 +189,43 @@ def _serialize_portfolio_summary(json_path: Path) -> str:
 
 
 @dataclass
+class StreamingAnswerMetadata:
+    """스트리밍 응답 이후 후속 작업을 위한 메타데이터."""
+
+    question: str
+    summary_text: str
+    follow_up_llm: ChatOpenAI
+    follow_up_prompt: ChatPromptTemplate
+    used_retriever: bool
+    context_documents: List[Any]
+
+    def finalize(self, answer_text: str) -> Dict[str, Any]:
+        """스트리밍이 완료된 뒤 후속 정보를 생성한다.
+
+        Args:
+            answer_text (str): 스트리밍된 최종 답변 텍스트.
+
+        Returns:
+            Dict[str, Any]: 답변, 참고 문맥, 후속 질문, 검색 여부 정보를 포함한 사전.
+        """
+
+        follow_up_messages = self.follow_up_prompt.format_messages(
+            question=self.question,
+            answer=answer_text,
+            summary=self.summary_text,
+        )
+        follow_up_response = self.follow_up_llm.invoke(follow_up_messages)
+        follow_up_questions = _parse_follow_up_questions(follow_up_response.content)
+
+        return {
+            "answer": answer_text,
+            "context": list(self.context_documents),
+            "follow_ups": follow_up_questions,
+            "used_retriever": self.used_retriever,
+        }
+
+
+@dataclass
 class PortfolioChatAssistant:
     """포트폴리오 대화를 총괄하는 LangChain 기반 어시스턴트."""
 
@@ -219,50 +256,72 @@ class PortfolioChatAssistant:
         decision = response.content.strip().upper()
         return "RETRIEVE" in decision
 
-    def generate_answer(self, question: str, history: Sequence[dict]) -> Dict[str, Any]:
-        """질문에 대한 답변과 후속 질문을 생성한다.
+    def generate_answer_stream(
+        self, question: str, history: Sequence[dict]
+    ) -> tuple[Iterator[str], StreamingAnswerMetadata]:
+        """질문에 대한 답변을 스트리밍 형태로 생성한다.
 
         Args:
-            question (str): 사용자의 입력.
+            question (str): 사용자가 입력한 질문.
+            history (Sequence[dict]): LangChain 호환 히스토리 생성에 사용될 대화 로그.
+
+        Returns:
+            tuple[Iterator[str], StreamingAnswerMetadata]:
+                토큰 단위 문자열을 방출하는 제너레이터와 후속 처리를 위한 메타데이터.
+        """
+
+        should_retrieve = self.decide_retrieval(question)
+        langchain_history = build_langchain_history(history)
+        context_documents: List[Any] = []
+
+        def stream() -> Iterator[str]:
+            if should_retrieve:
+                for chunk in self.retrieval_chain.stream(
+                    {"input": question, "chat_history": langchain_history}
+                ):
+                    if "answer" in chunk:
+                        text = chunk["answer"]
+                        if text:
+                            yield str(text)
+                    if "context" in chunk:
+                        documents = chunk["context"] or []
+                        context_documents.clear()
+                        context_documents.extend(documents)
+            else:
+                messages = self.direct_prompt.format_messages(
+                    question=question,
+                    chat_history=langchain_history,
+                    summary=self.summary_text,
+                )
+                for chunk in self.response_llm.stream(messages):
+                    text = getattr(chunk, "content", "")
+                    if text:
+                        yield str(text)
+
+        metadata = StreamingAnswerMetadata(
+            question=question,
+            summary_text=self.summary_text,
+            follow_up_llm=self.follow_up_llm,
+            follow_up_prompt=self.follow_up_prompt,
+            used_retriever=should_retrieve,
+            context_documents=context_documents,
+        )
+        return stream(), metadata
+
+    def generate_answer(self, question: str, history: Sequence[dict]) -> Dict[str, Any]:
+        """질문에 대한 답변과 후속 질문을 완성된 형태로 반환한다.
+
+        Args:
+            question (str): 사용자가 입력한 질문.
             history (Sequence[dict]): 대화 히스토리.
 
         Returns:
             Dict[str, Any]: 답변, 참고 문맥, 후속 질문, 검색 여부를 포함한 결과.
         """
 
-        should_retrieve = self.decide_retrieval(question)
-        langchain_history = build_langchain_history(history)
-
-        if should_retrieve:
-            result: Dict[str, Any] = self.retrieval_chain.invoke(
-                {"input": question, "chat_history": langchain_history}
-            )
-            answer = result.get("answer", "요청에 대한 답변을 생성하지 못했습니다.")
-            context = result.get("context", [])
-        else:
-            messages = self.direct_prompt.format_messages(
-                question=question,
-                chat_history=langchain_history,
-                summary=self.summary_text,
-            )
-            response = self.response_llm.invoke(messages)
-            answer = response.content
-            context = []
-
-        follow_up_messages = self.follow_up_prompt.format_messages(
-            question=question,
-            answer=answer,
-            summary=self.summary_text,
-        )
-        follow_up_response = self.follow_up_llm.invoke(follow_up_messages)
-        follow_up_questions = _parse_follow_up_questions(follow_up_response.content)
-
-        return {
-            "answer": answer,
-            "context": context,
-            "follow_ups": follow_up_questions,
-            "used_retriever": should_retrieve,
-        }
+        stream_iterator, metadata = self.generate_answer_stream(question, history)
+        answer_text = "".join(list(stream_iterator))
+        return metadata.finalize(answer_text)
 
 
 def _parse_follow_up_questions(raw_text: str) -> List[str]:
@@ -340,13 +399,13 @@ def create_portfolio_assistant(assets_dir: Path, json_path: Path) -> PortfolioCh
         [
             (
                 "system",
-                "너는 채용 담당자가 흥미를 가질 후속 질문을 제안하는 어시스턴트다. "
-                "최대 세 개의 질문을 JSON 배열 형태로 출력해라.",
+                "너는 서류를 검토하는 채용 담당자가 지원자에게 던질 심화 질문을 도와주는 어시스턴트다. "
+                "질문은 포트폴리오 평가 관점에서 핵심 역량을 검증할 수 있어야 하며, 최대 세 개를 JSON 배열 형태로 출력해라.",
             ),
             (
                 "human",
                 "기존 질문: {question}\n답변: {answer}\n포트폴리오 요약:\n{summary}\n"
-                "채용 담당자가 추가로 물어볼 만한 짧은 질문을 제안해라.",
+                "서류 검토자가 지원자에게 추가 확인하고 싶은 짧고 구체적인 질문을 제안해라.",
             ),
         ]
     )
