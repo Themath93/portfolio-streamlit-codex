@@ -3,18 +3,18 @@
     "name": "윤병우",
     "title": "데이터 엔지니어",
     "email": "lms46784678@gmail.com",
-    "phone": "+82-10-4695-5394",
+    "phone": "010-4695-5394",
     "location": "서울, 대한민국"
   },
   "about": {
     "description": "데이터 엔지니어링, Snowflake, AI 챗봇 등 서비스를 구성·운영했고 공공기관 챗봇 프로젝트도 수행했습니다. 새로운 기술은 문서부터 확인하는 습관이 있으며, 오픈소스 문서 오타 수정으로 기여한 경험이 있습니다.",
     "interests": [
       "데이터 엔지니어링",
-      "AI 챗봇",
+      "Langchain",
       "Snowflake",
       "ETL/크롤링"
     ],
-    "education": "계양고등학교 (2008.03 - 2011.02); 멀티캠퍼스 데이터 엔지니어 과정 (2022.05 - 2022.11)",
+    "educations": ["계양고등학교 (2008.03 - 2011.02)", "멀티캠퍼스 데이터 엔지니어 과정 (2022.05 - 2022.11)"],
     "strengths": []
   },
   "projects": [
@@ -122,7 +122,7 @@
     }
   ],
   "social_links": {
-    ":link: 깃허브 링크": "https://github.com/Themath93",
-    ":link: 노션 포트폴리오 링크": "https://lizard-dive-9a3.notion.site/37b80353afce44a19913c66614f23674?pvs=74"
+    ":link: GitHub 링크": "https://github.com/Themath93",
+    ":link: Notion 포트폴리오 링크": "https://lizard-dive-9a3.notion.site/37b80353afce44a19913c66614f23674?pvs=74"
   }
 }

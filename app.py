@@ -514,7 +514,7 @@ def render_home_page(
         assistant_error (Optional[str]): 챗봇 초기화 오류 메시지.
     """
 
-    col_title, col_image = st.columns([3, 1], gap="small")
+    col_title, col_image = st.columns([3, 1])
     with col_title:
         st.title("안녕하세요! **데이터 엔지니어 윤병우**를 소개합니다!")
     with col_image:
@@ -554,10 +554,11 @@ def render_home_page(
             st.markdown("### 💡 관심 분야")
             st.markdown("\n".join([f"- {interest}" for interest in interests]))
 
-        education = about_info.get("education")
-        if education:
+        educations = about_info.get("educations")
+        print(about_info)
+        if educations:
             st.markdown("### 🎓 교육")
-            st.write(education)
+            st.markdown("\n".join([f"- {education}" for education in educations]))
 
         strengths = about_info.get("strengths")
         if isinstance(strengths, list) and strengths:
@@ -597,29 +598,6 @@ def render_home_page(
     metrics_columns[2].metric("경력 이력", len(experience_items))
 
     st.caption(f"📅 마지막 업데이트: {datetime.now().strftime('%Y년 %m월 %d일')}")
-
-    if projects:
-        st.markdown("### 🚀 대표 프로젝트")
-        for project in projects[:3]:
-            title_text = project.get("title", "이름 미정 프로젝트")
-            description_text = project.get("description") or "프로젝트 설명이 제공되지 않았습니다."
-            company = project.get("company")
-            period = project.get("period")
-            goal = project.get("goal")
-            output = project.get("output")
-
-            st.markdown(f"**{title_text}**")
-            if company or period:
-                st.caption(" · ".join(filter(None, [company, period])))
-            st.write(description_text)
-            if goal:
-                st.markdown(f"- 목표: {goal}")
-            if output:
-                st.markdown(f"- 성과: {output}")
-
-            tech_stack = _normalize_project_stack(project)
-            if tech_stack:
-                st.caption("기술 스택: " + ", ".join(tech_stack))
 
     render_home_chatbot_section(assistant, assistant_error)
 
