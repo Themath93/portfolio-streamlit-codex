@@ -150,23 +150,167 @@ def prepare_portfolio_data(json_path: Path) -> Tuple[Optional[Dict[str, Any]], O
         return None, str(error)
 
 
-def render_sidebar_navigation() -> str:
-    """사이드바 네비게이션을 출력한다.
+def build_skill_domains(skills: Any) -> List[Tuple[str, List[str]]]:
+    """기술 정보를 데이터·백엔드·데브옵스 도메인으로 정리한다.
+
+    Args:
+        skills (Any): ``portfolio_data.json``의 ``skills`` 항목 값.
+
+    Returns:
+        List[Tuple[str, List[str]]]: 도메인 이름과 기술 문자열 목록 쌍 리스트.
+    """
+
+    domain_order = ["데이터 엔지니어링", "백엔드", "데브옵스"]
+
+    def normalize_entries(value: Any) -> List[str]:
+        """기술 정보를 문자열 목록으로 평탄화한다.
+
+        Args:
+            value (Any): 변환할 기술 정보.
+
+        Returns:
+            List[str]: 사용자가 읽기 쉬운 문자열 목록.
+        """
+
+        if isinstance(value, dict):
+            normalized_items: List[str] = []
+            for key, descriptor in value.items():
+                label = str(key)
+                if isinstance(descriptor, (list, tuple)):
+                    descriptor_text = ", ".join(str(item) for item in descriptor if item)
+                else:
+                    descriptor_text = str(descriptor) if descriptor else ""
+                if descriptor_text:
+                    normalized_items.append(f"{label} ({descriptor_text})")
+                else:
+                    normalized_items.append(label)
+            return normalized_items
+        if isinstance(value, list):
+            flattened: List[str] = []
+            for item in value:
+                flattened.extend(normalize_entries(item))
+            return flattened
+        if value:
+            return [str(value)]
+        return []
+
+    if not isinstance(skills, dict):
+        return []
+
+    explicit_domains = skills.get("domains")
+    if isinstance(explicit_domains, dict):
+        ordered_domains: List[Tuple[str, List[str]]] = []
+        for domain in domain_order:
+            entries = normalize_entries(explicit_domains.get(domain, []))
+            if entries:
+                ordered_domains.append((domain, entries))
+        for domain_name, values in explicit_domains.items():
+            if domain_name not in domain_order:
+                entries = normalize_entries(values)
+                if entries:
+                    ordered_domains.append((domain_name, entries))
+        return ordered_domains
+
+    category_to_domain = {
+        "languages": "데이터 엔지니어링",
+        "data": "데이터 엔지니어링",
+        "data_engineering": "데이터 엔지니어링",
+        "frameworks": "백엔드",
+        "backend": "백엔드",
+        "libraries": "백엔드",
+        "tools": "데브옵스",
+        "devops": "데브옵스",
+        "infrastructure": "데브옵스",
+    }
+
+    aggregated: Dict[str, List[str]] = {domain: [] for domain in domain_order}
+    for category, value in skills.items():
+        if category == "domains":
+            continue
+        normalized_category = str(category).lower()
+        target_domain = category_to_domain.get(normalized_category, "데이터 엔지니어링")
+        aggregated.setdefault(target_domain, [])
+        aggregated[target_domain].extend(normalize_entries(value))
+
+    ordered_result: List[Tuple[str, List[str]]] = []
+    for domain in domain_order:
+        entries = list(dict.fromkeys(aggregated.get(domain, [])))
+        if entries:
+            ordered_result.append((domain, entries))
+    for domain_name, values in aggregated.items():
+        if domain_name not in domain_order:
+            entries = list(dict.fromkeys(values))
+            if entries:
+                ordered_result.append((domain_name, entries))
+    return ordered_result
+
+
+def render_sidebar_navigation(
+    portfolio_data: Optional[Dict[str, Any]],
+    error_message: Optional[str],
+) -> str:
+    """사이드바 네비게이션과 프로필 정보를 출력한다.
+
+    Args:
+        portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
+        error_message (Optional[str]): 데이터 로드 실패 시 노출할 오류 메시지.
 
     Returns:
         str: 선택된 페이지 식별자.
     """
-    st.sidebar.title("📂 Navigation")
+
+    personal_info = (portfolio_data or {}).get("personal_info", {})
+    social_links = (portfolio_data or {}).get("social_links", {})
+
+    profile_image_path = Path("images/윤병우_main_image.jpg")
+    if profile_image_path.exists():
+        st.sidebar.image(
+            str(profile_image_path),
+            use_container_width=True,
+        )
+
+    name = personal_info.get("name")
+    title = personal_info.get("title")
+    location = personal_info.get("location")
+
+    if name:
+        st.sidebar.markdown(f"### {name}")
+    if title:
+        st.sidebar.caption(title)
+    if location:
+        st.sidebar.markdown(f"📍 {location}")
+
+    contact_lines: List[str] = []
+    email = personal_info.get("email")
+    phone = personal_info.get("phone")
+    if email:
+        contact_lines.append(f"📧 [{email}](mailto:{email})")
+    if phone:
+        contact_lines.append(f"📱 {phone}")
+    if contact_lines:
+        st.sidebar.markdown("\n".join(contact_lines))
+
+    if social_links:
+        st.sidebar.markdown("#### 🔗 링크")
+        for label, url in social_links.items():
+            if url:
+                st.sidebar.markdown(f"- [{label}]({url})")
+
+    st.sidebar.divider()
+
+    st.sidebar.subheader("📂 탐색")
     page = st.sidebar.selectbox(
         "페이지를 선택하세요",
         ["🏠 홈", "👤 소개", "💼 프로젝트", "📞 연락처"],
         key="sidebar_page",
     )
 
-    st.sidebar.markdown("---")
+    if error_message:
+        st.sidebar.error(error_message)
+
     st.sidebar.info(
-        "이 포트폴리오는 [GitHub 저장소](https://github.com/Themath93/portfolio-streamlit-codex)에서 확인할 수 있습니다."
-        "Codex 를 사용하여 개발 하였습니다."
+        "이 포트폴리오는 [GitHub 저장소](https://github.com/Themath93/portfolio-streamlit-codex)에서 확인할 수 있습니다. "
+        "Codex 를 사용하여 개발했습니다."
     )
     return page
 
@@ -514,85 +658,6 @@ def render_home_page(
         assistant_error (Optional[str]): 챗봇 초기화 오류 메시지.
     """
 
-    st.markdown(
-        """
-        <style>
-        .home-hero-card {
-            background: linear-gradient(135deg, #f9fafc 0%, #ffffff 100%);
-            border-radius: 18px;
-            padding: 28px;
-            box-shadow: 0 18px 35px rgba(15, 23, 42, 0.12);
-        }
-        .home-hero-heading {
-            font-size: 2.6rem;
-            font-weight: 700;
-            margin-bottom: 0.4rem;
-        }
-        .home-hero-role {
-            font-size: 1.3rem;
-            color: #2563eb;
-            margin-bottom: 0.8rem;
-            font-weight: 600;
-        }
-        .home-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            border-radius: 999px;
-            padding: 6px 14px;
-            background: rgba(37, 99, 235, 0.12);
-            color: #1e3a8a;
-            font-size: 0.85rem;
-            margin-right: 8px;
-            margin-bottom: 6px;
-        }
-        .home-card {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 18px 20px;
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-            margin-bottom: 18px;
-        }
-        .home-card h4 {
-            margin: 0 0 12px 0;
-            font-size: 1.05rem;
-            font-weight: 700;
-        }
-        .home-card ul {
-            margin: 0;
-            padding-left: 1.1rem;
-        }
-        .home-section-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-top: 14px;
-            margin-bottom: 14px;
-        }
-        .home-contact-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
-            font-weight: 600;
-            color: #0f172a;
-        }
-        .home-contact-item span {
-            font-weight: 500;
-            color: #475569;
-        }
-        .home-experience-item {
-            margin-bottom: 12px;
-        }
-        .home-experience-item strong {
-            display: block;
-            color: #1e293b;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
     render_home_navigation_button()
 
     if error_message:
@@ -608,173 +673,74 @@ def render_home_page(
     about_info = portfolio_data.get("about", {})
     experience_items = portfolio_data.get("experience", [])
     skills = portfolio_data.get("skills", {}) if isinstance(portfolio_data, dict) else {}
-    social_links = portfolio_data.get("social_links", {})
 
-    name = personal_info.get("name", "포트폴리오 주인")
+    name = personal_info.get("name", "포트폴리오")
     title = personal_info.get("title", "전문가")
-    location = personal_info.get("location")
-    email = personal_info.get("email")
-    phone = personal_info.get("phone")
 
     interests = about_info.get("interests")
     hero_keywords: List[str] = []
     if isinstance(interests, list) and interests:
-        hero_keywords = interests[:3]
+        hero_keywords = [str(keyword) for keyword in interests[:3]]
     elif isinstance(skills, dict):
         language_keys = list((skills.get("languages") or {}).keys())
         if language_keys:
-            hero_keywords = language_keys[:3]
-    if not hero_keywords and title:
-        hero_keywords = [title]
+            hero_keywords = [str(keyword) for keyword in language_keys[:3]]
 
-    hero_col1, hero_col2 = st.columns([1, 2], gap="large")
+    st.title(f"{name}의 포트폴리오")
+    st.subheader(f"{title} · AI & 데이터 옹호자")
+    if hero_keywords:
+        st.markdown(" ".join(f"`{keyword}`" for keyword in hero_keywords))
 
-    with hero_col1:
-        st.image("images/윤병우_main_image.jpg", use_column_width=True)
-        contact_html_parts = []
-        if location:
-            contact_html_parts.append(
-                f"<div class='home-contact-item'>📍 <span>{location}</span></div>"
-            )
-        if email:
-            contact_html_parts.append(
-                f"<div class='home-contact-item'>✉️ <span>{email}</span></div>"
-            )
-        if phone:
-            contact_html_parts.append(
-                f"<div class='home-contact-item'>📱 <span>{phone}</span></div>"
-            )
+    description = about_info.get("description")
+    if description:
+        st.write(description)
+    else:
+        st.info("자기소개를 `portfolio_data.json`의 `about.description`에 입력하면 이 영역에 표시됩니다.")
 
-        if social_links:
-            links_html = "".join(
-                f"<div class='home-contact-item'>🔗 <span><a href='{url}' target='_blank'>{label}</a></span></div>"
-                for label, url in social_links.items()
-                if url
-            )
-            contact_html_parts.append(links_html)
+    st.divider()
 
-        if contact_html_parts:
-            st.markdown(
-                """
-                <div class='home-card'>
-                    <h4>📬 Contatos</h4>
-                    {items}
-                </div>
-                """.format(items="".join(contact_html_parts)),
-                unsafe_allow_html=True,
-            )
-
-    with hero_col2:
-        st.markdown(
-            """
-            <div class='home-hero-card'>
-        """
-            + f"<div class='home-hero-heading'>{name}</div>"
-            + f"<div class='home-hero-role'>{' · '.join(filter(None, [title, 'AI & Data Advocate']))}</div>"
-            + "".join([f"<div class='home-pill'>{keyword}</div>" for keyword in hero_keywords])
-            + """
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(
-            f"""
-            <div class='home-card'>
-                <h4>Sobre Mim</h4>
-                <p>{about_info.get('description', '데이터 기반 문제 해결을 즐기는 전문가입니다.')}</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if isinstance(interests, list) and interests:
-            st.markdown(
-                """
-                <div class='home-card'>
-                    <h4>Interesses Recentes</h4>
-                    <ul>{items}</ul>
-                </div>
-                """.format(items="".join([f"<li>{interest}</li>" for interest in interests])),
-                unsafe_allow_html=True,
-            )
-
-    st.markdown("<div class='home-section-title'>🎓 Formação & Experiência</div>", unsafe_allow_html=True)
-
-    formation_col, experience_col = st.columns([1, 1], gap="large")
+    if isinstance(interests, list) and interests:
+        st.subheader("관심 주제")
+        st.markdown(" ".join(f"`{interest}`" for interest in interests))
+        st.divider()
 
     educations = about_info.get("educations")
-    if educations:
-        formation_col.markdown(
-            """
-            <div class='home-card'>
-                <h4>Formação Acadêmica</h4>
-                <ul>{items}</ul>
-            </div>
-            """.format(items="".join([f"<li>{education}</li>" for education in educations])),
-            unsafe_allow_html=True,
-        )
+    if educations or experience_items:
+        st.subheader("학력 및 경력")
+        edu_col, exp_col = st.columns(2, gap="large")
 
-    if experience_items:
-        experience_html = "".join(
-            [
-                """
-                <div class='home-experience-item'>
-                    <strong>{period}</strong>
-                    <span>{event}</span>
-                </div>
-                """.format(
-                    period=item.get("period", "기간 미상"),
-                    event=item.get("event", "세부 내용 미상"),
-                )
-                for item in experience_items
-            ]
-        )
-        experience_col.markdown(
-            f"""
-            <div class='home-card'>
-                <h4>Experiência Profissional</h4>
-                {experience_html}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("<div class='home-section-title'>🛠️ Habilidades Técnicas</div>", unsafe_allow_html=True)
-
-    skill_sections = []
-    if isinstance(skills, dict):
-        skill_sections.append(("Linguagens", skills.get("languages", {})))
-        skill_sections.append(("Frameworks", skills.get("frameworks", {})))
-        skill_sections.append(("Ferramentas", skills.get("tools", {})))
-
-    skill_columns = st.columns(len(skill_sections) or 1, gap="large")
-    for column, (section_title, section_values) in zip(skill_columns, skill_sections):
-        if not section_values:
-            continue
-        if isinstance(section_values, dict):
-            items_html = "".join(
-                [f"<li><strong>{key}</strong> · {value}</li>" for key, value in section_values.items()]
-            )
-        elif isinstance(section_values, list):
-            items_html = "".join([f"<li>{value}</li>" for value in section_values])
+        if educations:
+            edu_col.markdown("#### 학력")
+            for education in educations:
+                edu_col.markdown(f"- {education}")
         else:
-            items_html = f"<li>{section_values}</li>"
+            edu_col.info("등록된 학력이 없습니다.")
 
-        column.markdown(
-            f"""
-            <div class='home-card'>
-                <h4>{section_title}</h4>
-                <ul>{items_html}</ul>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        if experience_items:
+            exp_col.markdown("#### 경력")
+            for item in experience_items:
+                period = item.get("period", "기간 미상")
+                event = item.get("event", "세부 내용 미상")
+                exp_col.markdown(f"- **{period}** · {event}")
+        else:
+            exp_col.info("등록된 경력 정보가 없습니다.")
+
+        st.divider()
+
+    skill_domains = build_skill_domains(skills)
+    st.subheader("보유 기술")
+    if skill_domains:
+        domain_columns = st.columns(len(skill_domains), gap="large")
+        for column, (domain_name, entries) in zip(domain_columns, skill_domains):
+            column.markdown(f"#### {domain_name}")
+            for entry in entries:
+                column.markdown(f"- {entry}")
+    else:
+        st.info("기술 정보를 `skills` 항목에 등록하면 이 영역에 표시됩니다.")
 
     st.caption(f"📅 마지막 업데이트: {datetime.now().strftime('%Y년 %m월 %d일')}")
 
     render_home_chatbot_section(assistant, assistant_error)
-
 
 def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
     """소개 페이지 콘텐츠를 포트폴리오 데이터 기반으로 출력한다.
@@ -1075,11 +1041,8 @@ def main() -> None:
     initialize_session_state()
     if st.session_state.pop("navigate_to_home", False):
         st.session_state["sidebar_page"] = "🏠 홈"
-    page = render_sidebar_navigation()
-
     portfolio_data, portfolio_error = prepare_portfolio_data(PORTFOLIO_DATA_PATH)
-    if portfolio_error:
-        st.sidebar.error("포트폴리오 데이터를 불러오지 못했습니다. 홈 화면에서 상세 내용을 확인해주세요.")
+    page = render_sidebar_navigation(portfolio_data, portfolio_error)
 
     assistant: Optional[PortfolioChatAssistant] = None
     assistant_error: Optional[str] = None
