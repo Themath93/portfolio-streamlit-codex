@@ -1,0 +1,349 @@
+/* 홈 페이지 전용 CSS 스타일 */
+
+/* 전체 컨테이너 */
+.home-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* 헤더 섹션 */
+.hero-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+    margin-bottom: 6rem;
+    min-height: 500px;
+}
+
+/* 좌측 콘텐츠 */
+.hero-content {
+    padding: 2rem 0;
+}
+
+.greeting {
+    font-size: 1.2rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+    font-weight: 400;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: #1f2937;
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+    animation: fadeInUp 0.8s ease-out 0.2s both;
+}
+
+.hero-subtitle {
+    font-size: 1.5rem;
+    color: #4b5563;
+    margin-bottom: 2rem;
+    font-weight: 500;
+    animation: fadeInUp 1s ease-out 0.4s both;
+}
+
+.hero-description {
+    font-size: 1.1rem;
+    color: #6b7280;
+    line-height: 1.7;
+    margin-bottom: 2.5rem;
+    animation: fadeInUp 1.2s ease-out 0.6s both;
+}
+
+.download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    animation: fadeInUp 1.4s ease-out 0.8s both;
+}
+
+.download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    color: white;
+    text-decoration: none;
+}
+
+/* 우측 이미지 */
+.hero-image {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeInRight 1s ease-out 0.4s both;
+}
+
+.hero-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.hero-image img:hover {
+    transform: scale(1.02);
+}
+
+/* 관심 주제 섹션 */
+.interests-section {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    padding: 3rem;
+    border-radius: 20px;
+    margin-bottom: 4rem;
+    animation: fadeInUp 1s ease-out 1s both;
+}
+
+.section-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.interests-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.interest-tag {
+    background: white;
+    color: #4f46e5;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: 2px solid #e5e7eb;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.interest-tag:hover {
+    background: #4f46e5;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+}
+
+/* 교육 및 경력 섹션 */
+.info-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-bottom: 4rem;
+    animation: fadeInUp 1s ease-out 1.2s both;
+}
+
+.info-card {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #f3f4f6;
+    transition: all 0.3s ease;
+}
+
+.info-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.info-card-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.info-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f9fafb;
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-period {
+    font-weight: 600;
+    color: #4f46e5;
+    min-width: 120px;
+    font-size: 0.9rem;
+}
+
+.info-content {
+    color: #6b7280;
+    line-height: 1.5;
+    flex: 1;
+}
+
+/* 기술 스택 섹션 */
+.skills-section {
+    background: white;
+    padding: 3rem;
+    border-radius: 20px;
+    margin-bottom: 4rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    animation: fadeInUp 1s ease-out 1.4s both;
+}
+
+.skills-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.skill-domain {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 12px;
+    border-left: 4px solid #4f46e5;
+}
+
+.skill-domain-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 1rem;
+}
+
+.skill-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.skill-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    color: #4b5563;
+    font-size: 0.95rem;
+}
+
+.skill-item:before {
+    content: "•";
+    color: #4f46e5;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+/* 챗봇 섹션 */
+.chatbot-section {
+    margin-top: 4rem;
+    animation: fadeInUp 1s ease-out 1.6s both;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .home-container {
+        padding: 1rem;
+    }
+
+    .hero-section {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        text-align: center;
+    }
+
+    .hero-title {
+        font-size: 2.5rem;
+    }
+
+    .hero-subtitle {
+        font-size: 1.2rem;
+    }
+
+    .info-section {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .skills-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .interests-section {
+        padding: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-title {
+        font-size: 2rem;
+    }
+
+    .hero-subtitle {
+        font-size: 1.1rem;
+    }
+
+    .download-btn {
+        padding: 0.8rem 1.5rem;
+        font-size: 1rem;
+    }
+
+    .info-card {
+        padding: 1.5rem;
+    }
+
+    .skills-section {
+        padding: 2rem;
+    }
+}
+
+/* 애니메이션 정의 */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* 업데이트 날짜 */
+.update-info {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 0.9rem;
+    margin-top: 2rem;
+    animation: fadeInUp 1s ease-out 1.8s both;
+}

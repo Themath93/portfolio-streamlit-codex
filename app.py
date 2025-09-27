@@ -20,6 +20,9 @@ from portfolio_chatbot import (
     create_portfolio_chain,
     load_project_documents,
 )
+from sidebar_refactored import render_sidebar_navigation_refactored
+from home_refactored import render_home_with_chatbot
+
 
 ASSETS_DIRECTORY = Path("assets")
 PROJECT_PDF_DIRECTORY = Path("assets/projects")
@@ -148,171 +151,6 @@ def prepare_portfolio_data(json_path: Path) -> Tuple[Optional[Dict[str, Any]], O
         return None, str(error)
     except ValueError as error:  # pylint: disable=broad-except
         return None, str(error)
-
-
-def build_skill_domains(skills: Any) -> List[Tuple[str, List[str]]]:
-    """기술 정보를 데이터·백엔드·데브옵스 도메인으로 정리한다.
-
-    Args:
-        skills (Any): ``portfolio_data.json``의 ``skills`` 항목 값.
-
-    Returns:
-        List[Tuple[str, List[str]]]: 도메인 이름과 기술 문자열 목록 쌍 리스트.
-    """
-
-    domain_order = ["데이터 엔지니어링", "백엔드", "데브옵스"]
-
-    def normalize_entries(value: Any) -> List[str]:
-        """기술 정보를 문자열 목록으로 평탄화한다.
-
-        Args:
-            value (Any): 변환할 기술 정보.
-
-        Returns:
-            List[str]: 사용자가 읽기 쉬운 문자열 목록.
-        """
-
-        if isinstance(value, dict):
-            normalized_items: List[str] = []
-            for key, descriptor in value.items():
-                label = str(key)
-                if isinstance(descriptor, (list, tuple)):
-                    descriptor_text = ", ".join(str(item) for item in descriptor if item)
-                else:
-                    descriptor_text = str(descriptor) if descriptor else ""
-                if descriptor_text:
-                    normalized_items.append(f"{label} ({descriptor_text})")
-                else:
-                    normalized_items.append(label)
-            return normalized_items
-        if isinstance(value, list):
-            flattened: List[str] = []
-            for item in value:
-                flattened.extend(normalize_entries(item))
-            return flattened
-        if value:
-            return [str(value)]
-        return []
-
-    if not isinstance(skills, dict):
-        return []
-
-    explicit_domains = skills.get("domains")
-    if isinstance(explicit_domains, dict):
-        ordered_domains: List[Tuple[str, List[str]]] = []
-        for domain in domain_order:
-            entries = normalize_entries(explicit_domains.get(domain, []))
-            if entries:
-                ordered_domains.append((domain, entries))
-        for domain_name, values in explicit_domains.items():
-            if domain_name not in domain_order:
-                entries = normalize_entries(values)
-                if entries:
-                    ordered_domains.append((domain_name, entries))
-        return ordered_domains
-
-    category_to_domain = {
-        "languages": "데이터 엔지니어링",
-        "data": "데이터 엔지니어링",
-        "data_engineering": "데이터 엔지니어링",
-        "frameworks": "백엔드",
-        "backend": "백엔드",
-        "libraries": "백엔드",
-        "tools": "데브옵스",
-        "devops": "데브옵스",
-        "infrastructure": "데브옵스",
-    }
-
-    aggregated: Dict[str, List[str]] = {domain: [] for domain in domain_order}
-    for category, value in skills.items():
-        if category == "domains":
-            continue
-        normalized_category = str(category).lower()
-        target_domain = category_to_domain.get(normalized_category, "데이터 엔지니어링")
-        aggregated.setdefault(target_domain, [])
-        aggregated[target_domain].extend(normalize_entries(value))
-
-    ordered_result: List[Tuple[str, List[str]]] = []
-    for domain in domain_order:
-        entries = list(dict.fromkeys(aggregated.get(domain, [])))
-        if entries:
-            ordered_result.append((domain, entries))
-    for domain_name, values in aggregated.items():
-        if domain_name not in domain_order:
-            entries = list(dict.fromkeys(values))
-            if entries:
-                ordered_result.append((domain_name, entries))
-    return ordered_result
-
-
-def render_sidebar_navigation(
-    portfolio_data: Optional[Dict[str, Any]],
-    error_message: Optional[str],
-) -> str:
-    """사이드바 네비게이션과 프로필 정보를 출력한다.
-
-    Args:
-        portfolio_data (Optional[Dict[str, Any]]): ``portfolio_data.json``에서 로드한 데이터.
-        error_message (Optional[str]): 데이터 로드 실패 시 노출할 오류 메시지.
-
-    Returns:
-        str: 선택된 페이지 식별자.
-    """
-
-    personal_info = (portfolio_data or {}).get("personal_info", {})
-    social_links = (portfolio_data or {}).get("social_links", {})
-
-    profile_image_path = Path("images/윤병우_main_image.jpg")
-    if profile_image_path.exists():
-        st.sidebar.image(
-            str(profile_image_path),
-            use_container_width=True,
-        )
-
-    name = personal_info.get("name")
-    title = personal_info.get("title")
-    location = personal_info.get("location")
-
-    if name:
-        st.sidebar.markdown(f"### {name}")
-    if title:
-        st.sidebar.caption(title)
-    if location:
-        st.sidebar.markdown(f"📍 {location}")
-
-    contact_lines: List[str] = []
-    email = personal_info.get("email")
-    phone = personal_info.get("phone")
-    if email:
-        contact_lines.append(f"📧 [{email}](mailto:{email})")
-    if phone:
-        contact_lines.append(f"📱 {phone}")
-    if contact_lines:
-        st.sidebar.markdown("\n".join(contact_lines))
-
-    if social_links:
-        st.sidebar.markdown("#### 🔗 링크")
-        for label, url in social_links.items():
-            if url:
-                st.sidebar.markdown(f"- [{label}]({url})")
-
-    st.sidebar.divider()
-
-    st.sidebar.subheader("📂 탐색")
-    page = st.sidebar.selectbox(
-        "페이지를 선택하세요",
-        ["🏠 홈", "👤 소개", "💼 프로젝트", "📞 연락처"],
-        key="sidebar_page",
-    )
-
-    if error_message:
-        st.sidebar.error(error_message)
-
-    st.sidebar.info(
-        "이 포트폴리오는 [GitHub 저장소](https://github.com/Themath93/portfolio-streamlit-codex)에서 확인할 수 있습니다. "
-        "Codex 를 사용하여 개발했습니다."
-    )
-    return page
 
 
 def render_home_navigation_button() -> None:
@@ -539,8 +377,25 @@ def render_home_chatbot_section(
     """
 
     st.markdown("---")
-    st.markdown("## 🤖 LangChain + FAISS 포트폴리오 챗봇")
-
+    st.markdown("## 🤖 궁금한 것 뭐든지 물어보세요")
+    # 설명서 마크다운
+    st.markdown(
+        """
+        포트폴리오에 대해 **궁금한 점**을 물어보세요!
+        ```
+        사용 모델: gpt-5-mini
+        임베딩 모델: text-embedding-3-small
+        ```
+        - 📄 프로젝트 세부 문서 PDF를 참고하여 답변합니다
+        - 🔍 벡터 검색을 통해 관련 정보를 찾아 제공합니다
+        - 💡 요약 정보를 바탕으로 간결하게 답변합니다
+        
+        🔍 예시질문리스트 🔍
+        - 어떤 프로젝트를 진행했나요?
+        - 주요 기술 스택은 무엇인가요?
+        - 어떤 경험을 쌓았나요?
+        - 데이터 엔지니어로서의 강점은 무엇인가요?
+        """)
     if assistant_error:
         st.error(assistant_error)
         return
@@ -657,89 +512,12 @@ def render_home_page(
         assistant (Optional[PortfolioChatAssistant]): 홈 화면에서 사용할 챗봇 어시스턴트.
         assistant_error (Optional[str]): 챗봇 초기화 오류 메시지.
     """
-
     render_home_navigation_button()
-
-    if error_message:
-        st.error(error_message)
-        st.info("`portfolio_data.json` 파일이 존재하고 올바른 형식인지 확인해주세요.")
-        return
-
-    if not portfolio_data:
-        st.info("표시할 포트폴리오 데이터가 없습니다. JSON 파일을 업데이트한 뒤 다시 시도해주세요.")
-        return
-
-    personal_info = portfolio_data.get("personal_info", {})
-    about_info = portfolio_data.get("about", {})
-    experience_items = portfolio_data.get("experience", [])
-    skills = portfolio_data.get("skills", {}) if isinstance(portfolio_data, dict) else {}
-
-    name = personal_info.get("name", "포트폴리오")
-    title = personal_info.get("title", "전문가")
-
-    interests = about_info.get("interests")
-    hero_keywords: List[str] = []
-    if isinstance(interests, list) and interests:
-        hero_keywords = [str(keyword) for keyword in interests[:3]]
-    elif isinstance(skills, dict):
-        language_keys = list((skills.get("languages") or {}).keys())
-        if language_keys:
-            hero_keywords = [str(keyword) for keyword in language_keys[:3]]
-
-    st.title(f"{name}의 포트폴리오")
-    st.subheader(f"{title} · AI & 데이터 옹호자")
-    if hero_keywords:
-        st.markdown(" ".join(f"`{keyword}`" for keyword in hero_keywords))
-
-    description = about_info.get("description")
-    if description:
-        st.write(description)
-    else:
-        st.info("자기소개를 `portfolio_data.json`의 `about.description`에 입력하면 이 영역에 표시됩니다.")
-
-    st.divider()
-
-    if isinstance(interests, list) and interests:
-        st.subheader("관심 주제")
-        st.markdown(" ".join(f"`{interest}`" for interest in interests))
-        st.divider()
-
-    educations = about_info.get("educations")
-    if educations or experience_items:
-        st.subheader("학력 및 경력")
-        edu_col, exp_col = st.columns(2, gap="large")
-
-        if educations:
-            edu_col.markdown("#### 학력")
-            for education in educations:
-                edu_col.markdown(f"- {education}")
-        else:
-            edu_col.info("등록된 학력이 없습니다.")
-
-        if experience_items:
-            exp_col.markdown("#### 경력")
-            for item in experience_items:
-                period = item.get("period", "기간 미상")
-                event = item.get("event", "세부 내용 미상")
-                exp_col.markdown(f"- **{period}** · {event}")
-        else:
-            exp_col.info("등록된 경력 정보가 없습니다.")
-
-        st.divider()
-
-    skill_domains = build_skill_domains(skills)
-    st.subheader("보유 기술")
-    if skill_domains:
-        domain_columns = st.columns(len(skill_domains), gap="large")
-        for column, (domain_name, entries) in zip(domain_columns, skill_domains):
-            column.markdown(f"#### {domain_name}")
-            for entry in entries:
-                column.markdown(f"- {entry}")
-    else:
-        st.info("기술 정보를 `skills` 항목에 등록하면 이 영역에 표시됩니다.")
-
-    st.caption(f"📅 마지막 업데이트: {datetime.now().strftime('%Y년 %m월 %d일')}")
-
+    
+    # 리팩토링된 홈 페이지 렌더링
+    render_home_with_chatbot(portfolio_data, error_message)
+    
+    # 챗봇 섹션 렌더링
     render_home_chatbot_section(assistant, assistant_error)
 
 def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
@@ -1021,13 +799,54 @@ def render_footer() -> None:
         None: 반환값이 없다.
     """
     st.markdown("---")
-    st.markdown(
+    st.html(
         """
-        <div style='text-align: center'>
-            <p>© 2024 포트폴리오. Streamlit으로 제작되었습니다.</p>
+        <style>
+        .footer-container {
+            text-align: center;
+            padding: 16px 0 8px 0;
+            background: var(--background-color, #f8f9fa);
+        }
+        .footer-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            border: none;
+            background: var(--btn-bg, #e0e0e0);
+            color: var(--btn-color, #222);
+            transition: background 0.2s, color 0.2s;
+        }
+        .footer-btn:hover {
+            background: var(--btn-hover-bg, #d0d0d0);
+        }
+        @media (prefers-color-scheme: dark) {
+            .footer-container {
+                background: #222;
+                color: #eee;
+            }
+            .footer-btn {
+                background: #333;
+                color: #eee;
+            }
+            .footer-btn:hover {
+                background: #444;
+            }
+        }
+        @media (max-width: 600px) {
+            .footer-btn {
+                width: 100%;
+                font-size: 16px;
+            }
+        }
+        </style>
+        <div class='footer-container'>
+            <p>© Yoon Byeong Woo. 2025</p>
+            <button class='footer-btn' onclick="window.scrollTo({top: 0, behavior: 'smooth'});">
+                ⬆️ 맨 위로 이동
+            </button>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -1042,7 +861,7 @@ def main() -> None:
     if st.session_state.pop("navigate_to_home", False):
         st.session_state["sidebar_page"] = "🏠 홈"
     portfolio_data, portfolio_error = prepare_portfolio_data(PORTFOLIO_DATA_PATH)
-    page = render_sidebar_navigation(portfolio_data, portfolio_error)
+    page = render_sidebar_navigation_refactored(portfolio_data, portfolio_error)
 
     assistant: Optional[PortfolioChatAssistant] = None
     assistant_error: Optional[str] = None
