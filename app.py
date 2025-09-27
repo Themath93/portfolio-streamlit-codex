@@ -20,6 +20,9 @@ from portfolio_chatbot import (
     create_portfolio_chain,
     load_project_documents,
 )
+from sidebar_refactored import render_sidebar_navigation_refactored
+from home_refactored import render_home_with_chatbot
+
 
 ASSETS_DIRECTORY = Path("assets")
 PROJECT_PDF_DIRECTORY = Path("assets/projects")
@@ -148,27 +151,6 @@ def prepare_portfolio_data(json_path: Path) -> Tuple[Optional[Dict[str, Any]], O
         return None, str(error)
     except ValueError as error:  # pylint: disable=broad-except
         return None, str(error)
-
-
-def render_sidebar_navigation() -> str:
-    """사이드바 네비게이션을 출력한다.
-
-    Returns:
-        str: 선택된 페이지 식별자.
-    """
-    st.sidebar.title("📂 Navigation")
-    page = st.sidebar.selectbox(
-        "페이지를 선택하세요",
-        ["🏠 홈", "👤 소개", "💼 프로젝트", "📞 연락처"],
-        key="sidebar_page",
-    )
-
-    st.sidebar.markdown("---")
-    st.sidebar.info(
-        "이 포트폴리오는 [GitHub 저장소](https://github.com/Themath93/portfolio-streamlit-codex)에서 확인할 수 있습니다."
-        "Codex 를 사용하여 개발 하였습니다."
-    )
-    return page
 
 
 def render_home_navigation_button() -> None:
@@ -395,8 +377,25 @@ def render_home_chatbot_section(
     """
 
     st.markdown("---")
-    st.markdown("## 🤖 LangChain + FAISS 포트폴리오 챗봇")
-
+    st.markdown("## 🤖 궁금한 것 뭐든지 물어보세요")
+    # 설명서 마크다운
+    st.markdown(
+        """
+        포트폴리오에 대해 **궁금한 점**을 물어보세요!
+        ```
+        사용 모델: gpt-5-mini
+        임베딩 모델: text-embedding-3-small
+        ```
+        - 📄 프로젝트 세부 문서 PDF를 참고하여 답변합니다
+        - 🔍 벡터 검색을 통해 관련 정보를 찾아 제공합니다
+        - 💡 요약 정보를 바탕으로 간결하게 답변합니다
+        
+        🔍 예시질문리스트 🔍
+        - 어떤 프로젝트를 진행했나요?
+        - 주요 기술 스택은 무엇인가요?
+        - 어떤 경험을 쌓았나요?
+        - 데이터 엔지니어로서의 강점은 무엇인가요?
+        """)
     if assistant_error:
         st.error(assistant_error)
         return
@@ -513,94 +512,13 @@ def render_home_page(
         assistant (Optional[PortfolioChatAssistant]): 홈 화면에서 사용할 챗봇 어시스턴트.
         assistant_error (Optional[str]): 챗봇 초기화 오류 메시지.
     """
-
-    col_title, col_image = st.columns([3, 1])
-    with col_title:
-        st.title("안녕하세요! **데이터 엔지니어 윤병우**를 소개합니다!")
-    with col_image:
-        st.image("images/윤병우_main_image.jpg", width=200)
     render_home_navigation_button()
-
-    if error_message:
-        st.error(error_message)
-        st.info("`portfolio_data.json` 파일이 존재하고 올바른 형식인지 확인해주세요.")
-        return
-
-    if not portfolio_data:
-        st.info("표시할 포트폴리오 데이터가 없습니다. JSON 파일을 업데이트한 뒤 다시 시도해주세요.")
-        return
-
-    personal_info = portfolio_data.get("personal_info", {})
-    about_info = portfolio_data.get("about", {})
-    projects = portfolio_data.get("projects", [])
-    experience_items = portfolio_data.get("experience", [])
-    skills = portfolio_data.get("skills", {})
-    languages = skills.get("languages", {}) if isinstance(skills, dict) else {}
-
-    name = personal_info.get("name", "포트폴리오 주인")
-    title = personal_info.get("title")
-    headline = f"{name} · {title}" if title else name
-
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        st.subheader(headline)
-        description = about_info.get("description")
-        if description:
-            st.write(description)
-
-        interests = about_info.get("interests")
-        if isinstance(interests, list) and interests:
-            st.markdown("### 💡 관심 분야")
-            st.markdown("\n".join([f"- {interest}" for interest in interests]))
-
-        educations = about_info.get("educations")
-        print(about_info)
-        if educations:
-            st.markdown("### 🎓 교육")
-            st.markdown("\n".join([f"- {education}" for education in educations]))
-
-        strengths = about_info.get("strengths")
-        if isinstance(strengths, list) and strengths:
-            st.markdown("### 💪 강점")
-            st.markdown("\n".join([f"- {strength}" for strength in strengths]))
-
-        if experience_items:
-            st.markdown("### 🧭 주요 경력")
-            for item in experience_items:
-                period = item.get("period", "기간 미상")
-                event = item.get("event", "세부 내용 미상")
-                st.markdown(f"- **{period}** · {event}")
-
-    with col2:
-        st.markdown("### 📬 연락처")
-        contact_entries = [
-            ("이메일", personal_info.get("email")),
-            ("전화번호", personal_info.get("phone")),
-            ("위치", personal_info.get("location")),
-        ]
-        for label, value in contact_entries:
-            if value:
-                st.markdown(f"- **{label}**: {value}")
-
-        social_links = portfolio_data.get("social_links", {})
-        if social_links:
-            st.markdown("### 🌐 소셜 링크")
-            for label, url in social_links.items():
-                if url:
-                    st.markdown(f"- [{label}]({url})")
-
-    st.markdown("---")
-
-    metrics_columns = st.columns(3)
-    metrics_columns[0].metric("프로젝트 수", len(projects))
-    metrics_columns[1].metric("사용 언어", len(languages))
-    metrics_columns[2].metric("경력 이력", len(experience_items))
-
-    st.caption(f"📅 마지막 업데이트: {datetime.now().strftime('%Y년 %m월 %d일')}")
-
+    
+    # 리팩토링된 홈 페이지 렌더링
+    render_home_with_chatbot(portfolio_data, error_message)
+    
+    # 챗봇 섹션 렌더링
     render_home_chatbot_section(assistant, assistant_error)
-
 
 def render_about_page(portfolio_data: Optional[Dict[str, Any]]) -> None:
     """소개 페이지 콘텐츠를 포트폴리오 데이터 기반으로 출력한다.
@@ -881,13 +799,54 @@ def render_footer() -> None:
         None: 반환값이 없다.
     """
     st.markdown("---")
-    st.markdown(
+    st.html(
         """
-        <div style='text-align: center'>
-            <p>© 2024 포트폴리오. Streamlit으로 제작되었습니다.</p>
+        <style>
+        .footer-container {
+            text-align: center;
+            padding: 16px 0 8px 0;
+            background: var(--background-color, #f8f9fa);
+        }
+        .footer-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            border: none;
+            background: var(--btn-bg, #e0e0e0);
+            color: var(--btn-color, #222);
+            transition: background 0.2s, color 0.2s;
+        }
+        .footer-btn:hover {
+            background: var(--btn-hover-bg, #d0d0d0);
+        }
+        @media (prefers-color-scheme: dark) {
+            .footer-container {
+                background: #222;
+                color: #eee;
+            }
+            .footer-btn {
+                background: #333;
+                color: #eee;
+            }
+            .footer-btn:hover {
+                background: #444;
+            }
+        }
+        @media (max-width: 600px) {
+            .footer-btn {
+                width: 100%;
+                font-size: 16px;
+            }
+        }
+        </style>
+        <div class='footer-container'>
+            <p>© Yoon Byeong Woo. 2025</p>
+            <button class='footer-btn' onclick="window.scrollTo({top: 0, behavior: 'smooth'});">
+                ⬆️ 맨 위로 이동
+            </button>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -901,11 +860,8 @@ def main() -> None:
     initialize_session_state()
     if st.session_state.pop("navigate_to_home", False):
         st.session_state["sidebar_page"] = "🏠 홈"
-    page = render_sidebar_navigation()
-
     portfolio_data, portfolio_error = prepare_portfolio_data(PORTFOLIO_DATA_PATH)
-    if portfolio_error:
-        st.sidebar.error("포트폴리오 데이터를 불러오지 못했습니다. 홈 화면에서 상세 내용을 확인해주세요.")
+    page = render_sidebar_navigation_refactored(portfolio_data, portfolio_error)
 
     assistant: Optional[PortfolioChatAssistant] = None
     assistant_error: Optional[str] = None
